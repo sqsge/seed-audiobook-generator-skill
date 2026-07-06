@@ -1,0 +1,234 @@
+{
+  "scene_id": "moonlit_cloister_duel_en",
+  "production_mode": "audio_drama_adaptation",
+  "prompt_language": "en",
+  "auto_planning": true,
+  "source_title": "The Duel in the Moonlit Cloister",
+  "source_url": "original_public_demo",
+  "source_excerpt": "Moonlight spilled across the abandoned cloister. The old portraits kept their eyes shut, pretending not to watch. Elian Vale stood by the broken fountain, wand raised. Mara Voss stepped from the archway with green sparks crawling over her knuckles. Mara: \"You should have stayed in the library, Vale.\" Elian: \"And miss your midnight villain speech? Never.\"\n\nMara slashed her wand through the air. Mara: \"Serpenshade!\" Black smoke twisted into a serpent and struck the pillar beside Elian. Elian: \"Luminara Fang!\" White-gold light shattered the creature into sparks.\n\nThe portraits gasped awake. Old Portrait: \"Highly improper spellwork after curfew!\" Mara drove forward, fury sharpening her voice. Mara: \"You think jokes will save you?\" Elian tried to answer, but the stone floor groaned under invisible weight.\n\nElian forced his wand upward. Elian: \"Featherbound!\" The pressure snapped away, flinging him backward into a suit of armor. Armor: \"State your business!\" Elian: \"Trying not to die!\"\n\nMara fired a red bolt down the corridor. Elian rolled behind the armor as the blast tore the helmet clean off. Armor: \"Rude.\" Elian spun his wand and split into three shimmering copies. Mara: \"Clever.\"\n\nMara's eyes flashed blue. Two false Elians burst like soap bubbles. The real Elian was already beside the stained-glass window. Elian: \"Too slow.\" He pointed at the moonlit glass. Elian: \"Prismatica!\" Reflected beams scattered across shields, frames, and wet stone.\n\nMara shielded her eyes. Elian: \"Vincula Argentum!\" Silver cords snapped around Mara's wrist, waist, and ankles, and her wand clattered away. Old Portrait: \"Ten points for technique. Fifty off for property damage.\" Elian kept his wand trained on Mara. Elian: \"Now tell me where you hid the star-key.\"\n\nMara smiled. Behind Elian, the headless armor bent down and picked up Mara's wand. Its empty neck turned toward him. Armor: \"Apologies. I appear to be cursed.\" The armor raised the wand, and the cloister fell into a sudden silence.\n",
+  "roles": {
+    "Narrator": {
+      "key": "narrator",
+      "label": "Narrator",
+      "reference_mode": "tts_audio",
+      "default_speaker": "en_male_knightley_uranus_bigtts",
+      "description": "English fantasy audiobook narrator, warm, suspenseful, clear, cinematic but not overacted",
+      "attribution_keywords": [],
+      "reference_prompt": "Moonlight crossed the cloister stones, and every sleeping portrait seemed to listen."
+    },
+    "Elian": {
+      "key": "elian",
+      "label": "Elian",
+      "reference_mode": "tts_audio",
+      "default_speaker": "en_male_josh_uranus_bigtts",
+      "description": "teenage male wizard, quick-witted, brave, tense but playful",
+      "attribution_keywords": ["Elian"],
+      "reference_prompt": "I am not running. Not while the star-key is still hidden in this school."
+    },
+    "Mara": {
+      "key": "mara",
+      "label": "Mara",
+      "reference_mode": "tts_audio",
+      "default_speaker": "en_female_rachel_p1_uranus_bigtts",
+      "description": "young female rival wizard, sharp, furious, controlled, dramatic",
+      "attribution_keywords": ["Mara"],
+      "reference_prompt": "You should have stayed in the library, Vale. This corridor belongs to me tonight."
+    },
+    "Armor": {
+      "key": "armor",
+      "label": "Armor",
+      "reference_mode": "tts_audio",
+      "default_speaker": "en_male_hades_uranus_bigtts",
+      "description": "enchanted suit of armor, resonant, metallic, formal, accidentally comic",
+      "attribution_keywords": ["Armor"],
+      "reference_prompt": "State your business. I am polished, armed, and extremely confused."
+    },
+    "Portrait": {
+      "key": "portrait",
+      "label": "Old Portrait",
+      "reference_mode": "tts_audio",
+      "default_speaker": "en_male_ronald_uranus_bigtts",
+      "description": "elderly painted wizard, dry, pompous, theatrical, amused by rule-breaking",
+      "attribution_keywords": ["Old Portrait", "Portrait"],
+      "reference_prompt": "Highly improper spellwork after curfew. Still, the footwork was not disgraceful."
+    }
+  },
+  "chunk_plan": [
+    {
+      "chunk_id": "chunk_001",
+      "title": "Moonlit Cloister",
+      "source_unit_ids": ["s0001", "s0002"],
+      "persistent_ambience": "cold night air, distant bell resonance, faint stone-room reverb",
+      "music_bed": "low celesta and soft strings enter, stay restrained, fade under the first confrontation",
+      "sound_design": "moonlit wind, old stone creaks, tiny portrait-frame ticks",
+      "speech_rate": 15,
+      "pace_note": "slow cinematic opening, clear and spacious",
+      "expected_duration_sec": {"min": 12, "max": 30}
+    },
+    {
+      "chunk_id": "chunk_002",
+      "title": "Wands Raised",
+      "source_unit_ids": ["s0003", "s0004"],
+      "persistent_ambience": "cloister air tightens, faint magical static",
+      "music_bed": "soft tension pulse enters, ducks under narration, fades at dialogue",
+      "sound_design": "wand hum, robe movement, green sparks",
+      "speech_rate": 17,
+      "pace_note": "natural setup pace, tension building",
+      "expected_duration_sec": {"min": 10, "max": 24}
+    },
+    {
+      "chunk_id": "chunk_003",
+      "title": "First Taunt",
+      "source_unit_ids": ["s0005", "s0006", "s0007"],
+      "persistent_ambience": "quiet cloister with listening portraits",
+      "music_bed": "thin suspense tone, duck under both voices, fade after Elian's joke",
+      "sound_design": "spark crackle, soft echo after each line",
+      "speech_rate": 16,
+      "pace_note": "dialogue should feel like a duel before the duel, not rushed",
+      "expected_duration_sec": {"min": 10, "max": 24}
+    },
+    {
+      "chunk_id": "chunk_004",
+      "title": "Serpenshade",
+      "source_unit_ids": ["s0008", "s0009", "s0010"],
+      "persistent_ambience": "rising magical pressure and stone echo",
+      "music_bed": "percussive strings enter, swell on the spell, drop under impact",
+      "sound_design": "wand slash, smoke-serpent hiss, stone impact",
+      "speech_rate": 20,
+      "pace_note": "first action beat, brisk but clear",
+      "expected_duration_sec": {"min": 12, "max": 30}
+    },
+    {
+      "chunk_id": "chunk_005",
+      "title": "Luminara Fang",
+      "source_unit_ids": ["s0011", "s0012"],
+      "persistent_ambience": "sparks drift through the cold air",
+      "music_bed": "bright string flare under the counterspell, quick fade",
+      "sound_design": "white-gold beam, serpent shatter, falling sparks",
+      "speech_rate": 20,
+      "pace_note": "short spell response, energetic and clean",
+      "expected_duration_sec": {"min": 8, "max": 20}
+    },
+    {
+      "chunk_id": "chunk_006",
+      "title": "Portrait Objects",
+      "source_unit_ids": ["s0013", "s0014"],
+      "persistent_ambience": "portraits rustle awake in their frames",
+      "music_bed": "comic low woodwind enters lightly, ducks under the portrait line",
+      "sound_design": "painted gasps, frame creak, distant sparkles",
+      "speech_rate": 16,
+      "pace_note": "comic interruption, give the portrait room",
+      "expected_duration_sec": {"min": 8, "max": 22}
+    },
+    {
+      "chunk_id": "chunk_007",
+      "title": "Weight Spell",
+      "source_unit_ids": ["s0015", "s0016", "s0017"],
+      "persistent_ambience": "floor stones groan, pressure gathers",
+      "music_bed": "low strings tighten, duck under Mara, swell into the floor groan",
+      "sound_design": "footsteps, wand snap, stone compression",
+      "speech_rate": 18,
+      "pace_note": "danger beat, tense but not rushed",
+      "expected_duration_sec": {"min": 12, "max": 30}
+    },
+    {
+      "chunk_id": "chunk_008",
+      "title": "Featherbound",
+      "source_unit_ids": ["s0018", "s0019", "s0020"],
+      "persistent_ambience": "air rushes upward, armor metal wakes",
+      "music_bed": "fast harp lift, comic metal hit, fade",
+      "sound_design": "released pressure, backward stumble, armor clang",
+      "speech_rate": 19,
+      "pace_note": "physical comedy inside danger, keep it crisp",
+      "expected_duration_sec": {"min": 12, "max": 30}
+    },
+    {
+      "chunk_id": "chunk_009",
+      "title": "Armor Speaks",
+      "source_unit_ids": ["s0021", "s0022"],
+      "persistent_ambience": "helmet wobble and metal echo",
+      "music_bed": "short comic sting, duck under dialogue, fade",
+      "sound_design": "armor plates, echo, quick breath",
+      "speech_rate": 17,
+      "pace_note": "quick exchange, let the joke land naturally",
+      "expected_duration_sec": {"min": 8, "max": 20}
+    },
+    {
+      "chunk_id": "chunk_010",
+      "title": "Red Bolt",
+      "source_unit_ids": ["s0023", "s0024", "s0025"],
+      "persistent_ambience": "corridor flashes red, armor rings",
+      "music_bed": "sharp low brass hit, brief silence, comic sting",
+      "sound_design": "red bolt, dive, helmet blast, metal clatter",
+      "speech_rate": 20,
+      "pace_note": "fast action, clear narration",
+      "expected_duration_sec": {"min": 12, "max": 30}
+    },
+    {
+      "chunk_id": "chunk_011",
+      "title": "Mirrorveil",
+      "source_unit_ids": ["s0026", "s0027", "s0028"],
+      "persistent_ambience": "magic shimmer spreads across wet stone",
+      "music_bed": "pizzicato pulse enters, ducks under the spell line, swells as copies split, fades into suspense",
+      "sound_design": "wand spin, three shimmer copies, footsteps split across the corridor",
+      "speech_rate": 19,
+      "pace_note": "illusion beat, agile but understandable",
+      "expected_duration_sec": {"min": 10, "max": 26}
+    },
+    {
+      "chunk_id": "chunk_012",
+      "title": "Truth Sight",
+      "source_unit_ids": ["s0029", "s0030", "s0031"],
+      "persistent_ambience": "magic shimmer collapses into cold stone echo",
+      "music_bed": "pizzicato pulse returns, ducks under Mara, swells on the blue eye-flash, fades under the reveal",
+      "sound_design": "blue eye-flash, two illusion pops, quick breath by the stained glass",
+      "speech_rate": 18,
+      "pace_note": "reveal beat, clear and slightly slower than the chase",
+      "expected_duration_sec": {"min": 10, "max": 26}
+    },
+    {
+      "chunk_id": "chunk_013",
+      "title": "Prismatica",
+      "source_unit_ids": ["s0032", "s0033", "s0034"],
+      "persistent_ambience": "glass hums in moonlight",
+      "music_bed": "bright celesta rises, duck under spell, shimmer out",
+      "sound_design": "stained glass resonance, spell flash, ricocheting light",
+      "speech_rate": 18,
+      "pace_note": "wonder and action together, do not rush the image",
+      "expected_duration_sec": {"min": 14, "max": 34}
+    },
+    {
+      "chunk_id": "chunk_014",
+      "title": "Silver Cords",
+      "source_unit_ids": ["s0035", "s0036", "s0037"],
+      "persistent_ambience": "light fades into tense quiet",
+      "music_bed": "strings swell on the binding spell, drop when the wand clatters",
+      "sound_design": "shielding gesture, silver cords snap, wand clatter",
+      "speech_rate": 18,
+      "pace_note": "victory beat, controlled and clear",
+      "expected_duration_sec": {"min": 12, "max": 30}
+    },
+    {
+      "chunk_id": "chunk_015",
+      "title": "Portrait Scores It",
+      "source_unit_ids": ["s0038", "s0039", "s0040", "s0041"],
+      "persistent_ambience": "portraits murmur while silver cords creak",
+      "music_bed": "dry comic flourish, fade into suspense",
+      "sound_design": "portrait applause, silver cord tension, quiet wand hum",
+      "speech_rate": 16,
+      "pace_note": "comic relief, then tighten into the question",
+      "expected_duration_sec": {"min": 14, "max": 34}
+    },
+    {
+      "chunk_id": "chunk_016",
+      "title": "Cursed Armor",
+      "source_unit_ids": ["s0042", "s0043", "s0044", "s0045", "s0046", "s0047"],
+      "persistent_ambience": "the cloister drops into sudden silence",
+      "music_bed": "low dread note enters under Mara's smile, swells as the armor turns, cuts to silence",
+      "sound_design": "soft smile breath, metal bend, wand pickup, hollow neck turn",
+      "speech_rate": 15,
+      "pace_note": "final twist, slow enough for dread and clarity",
+      "expected_duration_sec": {"min": 18, "max": 46}
+    }
+  ]
+}

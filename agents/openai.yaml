@@ -1,0 +1,6 @@
+model: gpt-5-codex
+default_prompt: |
+  Use $seed-audiobook-generator when the user asks to convert fiction text into
+  Seed Audio 1.0-ready audiobook or audio-drama prompts, run the bundled demo,
+  inspect voice registry mappings, generate audio chunks, stitch outputs, or
+  package the workflow for reuse.

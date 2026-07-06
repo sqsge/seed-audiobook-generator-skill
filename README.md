@@ -12,6 +12,7 @@ The workflow uses Seed 2.0 Pro for structured rewrite and Seed Audio 1.0 for mix
 ├── README.md
 ├── scripts/
 │   ├── audiobook_workflow.py
+│   ├── long_text_batch_planner.py
 │   ├── seed_audio_client.py
 │   ├── llm_chat.py
 │   ├── tts_client.py
@@ -50,6 +51,14 @@ python3 -m py_compile scripts/*.py
 
 Run the workflow without `--generate` to validate rewrite, chunking, and input-review behavior before calling the real audio model.
 
+Plan a long source file before generation:
+
+```bash
+python3 scripts/long_text_batch_planner.py --source-file examples/moonlit_cloister_source.txt
+```
+
+This creates a long-run folder with `source_clean.txt`, `preprocessing_report.json`, `chapter_plan.json`, `batch_plan.json`, `manifest.json`, and `chapters/chapter_XXXX.txt`. The planned chapters are then processed by the existing `audiobook_workflow.py` generation path.
+
 ## Configuration
 
 Use `references/env.example` as the safe template. Do not commit `.env`.
@@ -78,3 +87,24 @@ The bundled demo is `The Duel in the Moonlit Cloister`, an original English magi
 - per-chunk speaker slot binding
 - mixed generation with dialogue, narration, ambience, SFX, and music
 - input review and QA
+
+## Long-Form Batch Planning
+
+Long-form support is a pre-generation planning layer. It does not replace the existing source-to-audio mechanism.
+
+The planner:
+
+- cleans structural noise without rewriting prose
+- splits long text by semantic boundaries first and length fallback second
+- writes one chapter text file per planned unit
+- creates a batch plan for failure isolation
+- writes a manifest for resumable production
+
+The existing workflow still handles:
+
+- source-unit parsing
+- Seed 2.0 Pro rewrite
+- role-to-voice mapping
+- Seed Audio 1.0 request generation
+- audio chunk generation
+- stitching and QA

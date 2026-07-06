@@ -10,6 +10,7 @@ Use this skill when the user wants to convert a novel or scripted scene into a m
 ## What This Skill Does
 
 - Accepts plain source text or a story configuration.
+- Plans long source files into semantic chapters and ordered batches.
 - Parses the source into traceable story units.
 - Builds a voice registry for narrator and characters.
 - Rewrites the source into Seed Audio 1.0 sound-director prompts.
@@ -57,6 +58,12 @@ Dry-run rewrite and input review using the bundled demo:
 python3 scripts/audiobook_workflow.py
 ```
 
+Plan a long source file into chapters and batches without calling models:
+
+```bash
+python3 scripts/long_text_batch_planner.py --source-file path/to/novel.txt
+```
+
 Run the bundled magic-duel demo and generate audio:
 
 ```bash
@@ -91,6 +98,17 @@ The workflow writes outputs under `outputs/runs/<run_id>/`:
 
 Generated outputs are intentionally ignored by git.
 
+For long source files, the planner writes outputs under `outputs/long_runs/<run_id>/`:
+
+- `source_clean.txt`
+- `preprocessing_report.json`
+- `chapter_plan.json`
+- `batch_plan.json`
+- `manifest.json`
+- `chapters/chapter_XXXX.txt`
+
+Each planned chapter can then be passed to `scripts/audiobook_workflow.py --source-file ...` so the existing rewrite, voice binding, generation, stitching, and QA mechanism stays unchanged.
+
 ## Voice Binding Rule
 
 Do not treat `<<TGT_SPK1>>`, `<<TGT_SPK2>>`, and `<<TGT_SPK3>>` as global character IDs. They are per-request reference-audio slots.
@@ -114,3 +132,9 @@ After a run, report:
 - input review status
 - any failed chunks and likely cause
 
+For long-form planning, also report:
+
+- chapter count
+- batch count
+- preprocessing warnings
+- whether chapter coverage is complete

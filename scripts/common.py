@@ -36,6 +36,8 @@ def load_tool_env() -> None:
         SKILL_DIR / ".env.local",
         TOOL_DIR / ".env",
         TOOL_DIR / ".env.local",
+        SKILL_DIR.parent / "tool_" / ".env",
+        SKILL_DIR.parent / "tool_" / ".env.local",
         Path.home() / ".openclaw" / ".env",
         Path.home() / ".openclaw" / "workspace" / "tool" / ".env",
     ]

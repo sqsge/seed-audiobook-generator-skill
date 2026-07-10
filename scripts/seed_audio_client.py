@@ -223,6 +223,20 @@ def write_audio(result: dict, output_path: str | Path) -> bool:
     return True
 
 
+def write_response_meta(result: dict, output_path: str | Path) -> None:
+    out = Path(output_path)
+    meta_path = out.with_suffix(out.suffix + ".meta.json")
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
+    audio_url = extract_audio_url(result)
+    audio_base64 = extract_audio_base64(result)
+    meta = {
+        "audio_url": audio_url or "",
+        "has_audio_base64": bool(audio_base64),
+        "response_keys": sorted(result.keys()),
+    }
+    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def split_text_prompt(text: str, max_chars: int = SEED_AUDIO_MAX_CHARS) -> list[str]:
     paragraphs = [part.strip() for part in text.replace("\r\n", "\n").split("\n\n") if part.strip()]
     chunks: list[str] = []
@@ -338,6 +352,7 @@ def main() -> int:
                 timeout=args.timeout,
             )
             part_out = chunk_output_path(args.out, idx, len(text_parts)) if len(text_parts) > 1 else Path(args.out)
+            write_response_meta(result, part_out)
             if args.json:
                 outputs.append({"part": idx, "chars": len(text_part), "response": json.dumps(result, ensure_ascii=False)})
                 continue

@@ -38,6 +38,8 @@ Use this file for setup and credential triage. Never print real values from `.en
 - `TTS_FORMAT`: reference voice output format.
 - `TTS_SAMPLE_RATE`: reference voice sample rate.
 
+TTS is only required when a role uses `reference_mode=tts_audio`. The Chapter 28 workflow uses fixed `speaker` references by default, so it can skip TTS reference generation.
+
 ## Optional Speaker Overrides
 
 - `SEED_AUDIO_SPEAKER_NARRATOR`
@@ -45,12 +47,29 @@ Use this file for setup and credential triage. Never print real values from `.en
 - `SEED_AUDIO_SPEAKER_MARA`
 - `SEED_AUDIO_SPEAKER_ARMOR`
 - `SEED_AUDIO_SPEAKER_PORTRAIT`
+- `SEED_AUDIO_SPEAKER_HARRY_POTTER`
+- `SEED_AUDIO_SPEAKER_SEVERUS_SNAPE`
+- `SEED_AUDIO_SPEAKER_DRACO_MALFOY`
+- `SEED_AUDIO_SPEAKER_HAGRID`
+- `SEED_AUDIO_SPEAKER_GINNY_WEASLEY`
+- `SEED_AUDIO_SPEAKER_MINERVA_MCGONAGALL`
+- `SEED_AUDIO_SPEAKER_DEATH_EATER`
 
 Use these when the workflow should use fixed provider speakers rather than generated reference audio.
+
+## ASR Gate
+
+- `LAS_API_KEY`: preferred LAS ASR API key.
+- `ASR_API_KEY`: fallback ASR API key.
+- `ASR_SUBMIT_URL`: ASR submit endpoint.
+- `ASR_QUERY_URL`: ASR polling endpoint.
+- `ASR_SOURCE_LANGUAGE`: ASR language hint, `en-US` for the Chapter 28 case.
+- `ASR_MODEL_NAME`: ASR model name.
+- `ASR_POLL_INTERVAL`: polling interval in seconds.
+- `ASR_POLL_TIMEOUT`: polling timeout in seconds.
 
 ## Local Tools
 
 - `FFMPEG_PATH`: optional ffmpeg binary path.
 - `DOWNLOAD_TIMEOUT`: output download timeout in seconds.
 - `DOWNLOAD_RETRIES`: output download retry count.
-

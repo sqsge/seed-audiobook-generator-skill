@@ -229,7 +229,7 @@ def extract_utterances(result: dict) -> list[dict]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Submit and poll BytePlus ASR HTTP recognition task.")
     parser.add_argument("--audio-url", required=True, help="Publicly accessible audio URL")
-    parser.add_argument("--language", default=os.getenv("ASR_SOURCE_LANGUAGE", "zh-CN"))
+    parser.add_argument("--language", default=os.getenv("ASR_SOURCE_LANGUAGE", "en-US"))
     parser.add_argument("--audio-format", default="wav", help="Audio format for LAS ASR, e.g. wav/mp3/ogg/raw")
     parser.add_argument("--json", action="store_true", help="Print raw result JSON")
     args = parser.parse_args()

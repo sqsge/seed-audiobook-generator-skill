@@ -108,26 +108,27 @@ def split_oversized_text(text: str, limit: int) -> list[str]:
     if len(text) <= limit:
         return [text]
     pieces: list[str] = []
-    current = ""
-    sentences = [match.group(0).strip() for match in SENTENCE_RE.finditer(text) if match.group(0).strip()]
-    if not sentences:
-        sentences = [text]
-    for sentence in sentences:
-        if len(sentence) > limit:
-            if current:
-                pieces.append(current.strip())
-                current = ""
-            pieces.extend(split_by_clause(sentence, limit))
-            continue
-        candidate = f"{current} {sentence}".strip() if current else sentence
-        if len(candidate) <= limit:
-            current = candidate
-        else:
-            if current:
-                pieces.append(current.strip())
-            current = sentence
-    if current:
-        pieces.append(current.strip())
+    start = 0
+    text_len = len(text)
+    while start < text_len:
+        hard_end = min(start + limit, text_len)
+        if hard_end >= text_len:
+            pieces.append(text[start:].strip())
+            break
+
+        window = text[start:hard_end]
+        split_at = None
+        for match in re.finditer(r"[。！？!?\.][\"”']?\s+", window):
+            split_at = start + match.end()
+        if split_at is None or split_at <= start:
+            space = window.rfind(" ")
+            if space > max(80, limit // 3):
+                split_at = start + space + 1
+        if split_at is None or split_at <= start:
+            split_at = hard_end
+
+        pieces.append(text[start:split_at].strip())
+        start = split_at
     return pieces
 
 

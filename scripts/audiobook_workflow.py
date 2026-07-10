@@ -14,6 +14,7 @@ from pathlib import Path
 import llm_chat
 import tts_client
 import asr_client
+import common
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,7 +30,10 @@ VOICE_REGISTRY_VERSION = "voice_registry_seed2pro_20260702_001"
 MAX_PROMPT_CHARS = int(os.getenv("SEED_AUDIO_MAX_CHARS", "3000"))
 TARGET_AUDIO_PROMPT_CHARS = int(os.getenv("SEED_AUDIO_TARGET_CHARS", "2200"))
 TARGET_SPEECH_RATE = 24
-ENGLISH_TARGET_SPEECH_RATE = int(os.getenv("SEED_AUDIO_EN_SPEECH_RATE", "4"))
+ENGLISH_TARGET_SPEECH_RATE = int(os.getenv("SEED_AUDIO_EN_SPEECH_RATE", "0"))
+PERFORMANCE_REVIEW_MODEL = os.getenv("SEED_AUDIO_PERFORMANCE_REVIEW_MODEL", "seed-2-0-lite-260428")
+PERFORMANCE_REVIEW_TIMEOUT = int(os.getenv("SEED_AUDIO_PERFORMANCE_REVIEW_TIMEOUT", "75"))
+POSTPROCESS_TIMING = common.get_env_bool("SEED_AUDIO_POSTPROCESS_TIMING", False)
 HK_TZ = timezone(timedelta(hours=8))
 
 ROLE_SPECS = {
@@ -829,7 +833,7 @@ Hard requirements:
    - persistent_ambience from place/time/space
    - music_bed with concrete style, instruments, rhythm, and emotional function
    - sound_design with action-anchored SFX
-   - speech_rate from 12 to 24, adaptive to scene pace
+   - speech_rate from -4 to 8, adaptive to scene pace. Keep action natural-medium or measured-brisk, never fast enough to blur syllables.
    - pace_note
    - continuity fields
    - expected_duration_sec
@@ -845,6 +849,7 @@ Hard requirements:
 11. Sound effects must be motivated by actions in the text. Analyse SFX at unit level. For each unit, classify sound needs by the material itself: ambience/background/foreground, importance low/medium/high, and reason. Foreground means any narratively important visible or implied action sound in this source, whatever the genre is. Move only micro-ambience into persistent ambience.
 12. The final_audio_prompt must follow the official example style: a chronological performance prompt that sounds like one complete mixed scene. It should be natural paragraphs or short timeline beats, not a rigid source-unit reading list.
 13. Do not plan deliberate silence, total silence, long pause, overlapping voices, cross-talk, or simultaneous narration/dialogue. The final audio must have strictly sequential voices.
+13a. Urgency must come from acting, sound, and music, never rushed diction. In action-heavy material, use fewer spoken turns per chunk, let one foreground action event land at a time, and preserve clear consonants, breath, and the end of every sentence. End each chunk only after a completed spoken thought and a short natural ambience tail; never end on a spell, shout, unfinished word, or music hit.
 14. This is audio-drama adaptation, not full-book read-aloud. Do not convert every source_unit_id into a separate Narrator narrates / Character says line. Compress only nonessential narration into connective cinematic narration, keep every source beat understandable, keep must_keep_dialogue as actual spoken lines, and let action, music, ambience, and foreground SFX carry visible action.
 14a. Do not replace dialogue with summaries like "deliver her line", "the armor booms its challenge", "Mara acknowledges the trick", or "narrate the action". If a character speaks in the source, keep representative spoken lines as actual quoted dialogue in final_audio_prompt.
 14b. Use this official-style dialogue form for key lines, not a dry "speaks" label:
@@ -868,6 +873,7 @@ Hard requirements:
    - do not say "Do not read", "instruction", "source_unit", "SFX cue", "narrate", or "deliver the line" inside the final_audio_prompt
    - any narration that should be spoken must be an explicit Narrator line with actor marker and quoted English text
    - action, ambience, music, and SFX directions must be phrased as production sound events, not as prose that could be read aloud
+   - action urgency must be expressed by performance and sound design, not rapid reading; preserve a natural breath and sentence ending before each chunk boundary
 16. Before returning JSON, self-check every chunk for audio-drama coverage:
    - every source_beats item is represented by spoken dialogue, narration bridge, ambience/SFX, or music in final_audio_prompt
    - every must_keep_dialogue item appears as quoted dialogue with actor marker
@@ -3513,6 +3519,15 @@ def compress_internal_silence(path: Path, max_internal_sec: float = 1.35, keep_s
 
 def normalize_audio_timing(path: Path) -> dict:
     before = audio_duration(path)
+    if not POSTPROCESS_TIMING:
+        # Let the generation strategy control pacing. Removing quiet audio here
+        # can mistake a breath or weak final consonant for silence.
+        return {
+            "duration_before_timing_normalization_sec": before,
+            "duration_after_timing_normalization_sec": before,
+            "internal_silence_compressed": False,
+            "postprocess_timing_applied": False,
+        }
     trim_trailing_silence(path)
     compressed = compress_internal_silence(path)
     trim_trailing_silence(path)
@@ -3520,6 +3535,7 @@ def normalize_audio_timing(path: Path) -> dict:
         "duration_before_timing_normalization_sec": before,
         "duration_after_timing_normalization_sec": audio_duration(path),
         "internal_silence_compressed": compressed,
+        "postprocess_timing_applied": True,
     }
 
 
@@ -3722,7 +3738,8 @@ def concat_audio(run_dir: Path, parts: list[Path]) -> Path:
     )
     if result.returncode != 0:
         raise SystemExit(f"ffmpeg concat failed: {result.stderr.strip()}")
-    trim_trailing_silence(out)
+    if POSTPROCESS_TIMING:
+        trim_trailing_silence(out)
     part_durations = [audio_duration(path) for path in parts]
     expected_duration = sum(duration for duration in part_durations if duration is not None)
     stitched_duration = audio_duration(out)
@@ -4055,6 +4072,140 @@ def audio_quality_report(run_dir: Path, parts: list[Path], full: Path) -> dict:
     }
 
 
+PERFORMANCE_ISSUES = {
+    "rushed_delivery",
+    "clipped_ending",
+    "hard_boundary",
+    "speech_masked_by_mix",
+    "mechanical_narration",
+    "unintelligible_speech",
+}
+
+
+def performance_review_prompt(request: dict) -> str:
+    return f"""You are a strict audio-drama performance reviewer. Listen to the attached generated audio, not just its script.
+
+Evaluate only these release-blocking defects: rushed delivery, clipped ending, hard boundary/edit, speech masked by music or SFX, mechanical narration, unintelligible speech.
+
+Scene metadata:
+{json.dumps({{"chunk_id": request.get("chunk_id"), "source_beats": request.get("source_beats", []), "pace_note": request.get("continuity", {}), "speech_rate": request.get("audio_config", {}).get("speech_rate")}}, ensure_ascii=False)}
+
+Return one JSON object only:
+{{"status":"pass|fail","issues":[{{"type":"one allowed defect name","severity":"minor|major","evidence":"short concrete listening evidence"}}],"repair_focus":["short regeneration instruction"],"summary":"short verdict"}}
+
+A minor stylistic preference alone is pass. Fail if any major defect makes the audio feel cut off, rushed, masked, mechanical, or hard-edited."""
+
+
+def performance_review_report(run_dir: Path, parts: list[Path]) -> dict:
+    requests = {
+        path.stem: json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted((run_dir / "06_generation_requests").glob("chunk_*.json"))
+    }
+    reports = []
+    failures = []
+    for part in parts:
+        request = requests.get(part.stem, {})
+        report = {
+            "chunk_id": part.stem,
+            "model": PERFORMANCE_REVIEW_MODEL,
+            "status": "fail",
+            "issues": [],
+            "repair_focus": [],
+            "summary": "review not completed",
+        }
+        try:
+            raw = llm_chat.chat_text(
+                performance_review_prompt(request),
+                model=PERFORMANCE_REVIEW_MODEL,
+                temperature=0,
+                max_tokens=900,
+                audios=[str(part)],
+                timeout=PERFORMANCE_REVIEW_TIMEOUT,
+            )
+            write_text(run_dir / "logs" / f"performance_{part.stem}_raw.txt", raw)
+            parsed = extract_json(raw)
+            issues = [
+                item for item in parsed.get("issues", [])
+                if isinstance(item, dict) and item.get("type") in PERFORMANCE_ISSUES
+            ]
+            status = str(parsed.get("status", "fail")).lower()
+            major = [item for item in issues if str(item.get("severity", "major")).lower() == "major"]
+            report.update(
+                {
+                    "status": "pass" if status == "pass" and not major else "fail",
+                    "issues": issues,
+                    "repair_focus": [str(item) for item in parsed.get("repair_focus", []) if str(item).strip()][:4],
+                    "summary": str(parsed.get("summary", "")),
+                }
+            )
+        except Exception as exc:
+            report["status"] = "unavailable"
+            report["summary"] = f"performance reviewer unavailable: {exc}"
+            report["issues"] = [{"type": "review_unavailable", "severity": "major", "evidence": "review unavailable"}]
+        if report["status"] != "pass":
+            failures.append(f"{part.stem}: {report['summary']}")
+        reports.append(report)
+    return {
+        "status": "fail" if failures else "pass",
+        "model": PERFORMANCE_REVIEW_MODEL,
+        "fail_reasons": failures,
+        "policy": "Audio-capable review is required after engineering and ASR checks. Major pacing, tail, masking, narration, or boundary defects block stitching.",
+        "chunks": reports,
+    }
+
+
+def failed_performance_chunk_ids(performance: dict | None) -> set[str]:
+    if not performance:
+        return set()
+    return {
+        str(chunk["chunk_id"])
+        for chunk in performance.get("chunks", [])
+        if chunk.get("status") == "fail" and chunk.get("chunk_id")
+    }
+
+
+def apply_performance_repairs(run_dir: Path, performance: dict) -> dict:
+    """Make a compact, generation-side repair contract for failed chunks."""
+    repairs = []
+    by_id = {str(item.get("chunk_id")): item for item in performance.get("chunks", [])}
+    for chunk_id in failed_performance_chunk_ids(performance):
+        request_path = run_dir / "06_generation_requests" / f"{chunk_id}.json"
+        prompt_path = run_dir / "05_director_prompt_chunks" / f"{chunk_id}.txt"
+        if not request_path.exists() or not prompt_path.exists():
+            continue
+        request = json.loads(request_path.read_text(encoding="utf-8"))
+        review = by_id.get(chunk_id, {})
+        issue_types = {str(item.get("type")) for item in review.get("issues", [])}
+        focus = " ".join(review.get("repair_focus", []))[:220]
+        overlay = (
+            "Performance repair: use measured natural pacing; urgency comes from acting and sound, not fast reading. "
+            "Articulate every final consonant and complete each line before the next sound. "
+            "Keep music and effects below speech. End after a completed thought with a brief natural ambience tail."
+        )
+        if "mechanical_narration" in issue_types:
+            overlay += " Narrator varies emphasis and breath by meaning, never metronomic."
+        if focus:
+            overlay += f" Reviewer focus: {focus}."
+        original = prompt_path.read_text(encoding="utf-8").strip()
+        repaired_prompt = f"{original}\n{overlay}"
+        if len(repaired_prompt) > MAX_PROMPT_CHARS:
+            # Keep the explicit repair priority without exceeding the provider's hard prompt limit.
+            repaired_prompt = f"{overlay}\n{original[: MAX_PROMPT_CHARS - len(overlay) - 1].rstrip()}"
+        prompt_path.write_text(repaired_prompt + "\n", encoding="utf-8")
+        request["text_prompt"] = repaired_prompt
+        current_rate = int(request.get("audio_config", {}).get("speech_rate", ENGLISH_TARGET_SPEECH_RATE))
+        request.setdefault("audio_config", {})["speech_rate"] = max(-4, min(current_rate, 0))
+        request["performance_repair"] = {
+            "review_model": PERFORMANCE_REVIEW_MODEL,
+            "issues": review.get("issues", []),
+            "repair_focus": review.get("repair_focus", []),
+            "applied": True,
+        }
+        write_json(request_path, request)
+        repairs.append({"chunk_id": chunk_id, "speech_rate": request["audio_config"]["speech_rate"], "issues": sorted(issue_types)})
+    return {"repairs": repairs}
+
+
 def failed_quality_chunk_ids(quality: dict) -> set[str]:
     non_retriable = {
         "duration_much_shorter_than_playable_text_estimate",
@@ -4096,7 +4247,13 @@ def validate_audio(paths: list[Path]) -> dict:
     return report
 
 
-def write_analysis(run_dir: Path, build: dict, validation: dict | None, quality: dict | None = None) -> None:
+def write_analysis(
+    run_dir: Path,
+    build: dict,
+    validation: dict | None,
+    quality: dict | None = None,
+    performance: dict | None = None,
+) -> None:
     validation_text = "Generation not run yet."
     if validation:
         validation_text = "\n".join(
@@ -4106,6 +4263,9 @@ def write_analysis(run_dir: Path, build: dict, validation: dict | None, quality:
     quality_text = "Generation not run yet."
     if quality:
         quality_text = f"- Status: `{quality['status']}`\n- Fail reasons: {quality.get('fail_reasons', [])}\n- Final duration: {quality.get('final_audio', {}).get('duration_sec')}"
+    performance_text = "Generation not run yet."
+    if performance:
+        performance_text = f"- Model: `{performance.get('model')}`\n- Status: `{performance['status']}`\n- Fail reasons: {performance.get('fail_reasons', [])}"
     write_text(
         run_dir / "09_stage_effect_analysis.md",
         f"""# Doc-Compliant Seed 2.0 Pro Rewrite Workflow
@@ -4126,6 +4286,10 @@ def write_analysis(run_dir: Path, build: dict, validation: dict | None, quality:
 
 {quality_text}
 
+## Performance Review
+
+{performance_text}
+
 ## Compliance Notes
 
 - Source text is stored as clean plain text in `01_source_excerpt.txt`.
@@ -4135,6 +4299,7 @@ def write_analysis(run_dir: Path, build: dict, validation: dict | None, quality:
 - Seed Audio receives only the generated final audio prompt chunks plus fixed references.
 - English Audio input uses the official chronological mixed-scene style: compressed narration, selected key dialogue, continuous ambience, audible music, and source-timed foreground SFX woven into the same timeline.
 - ASR checks speech-language coverage, skipped lines, read-risk leaks, and key terms only; music, ambience, SFX, overlap, and silence are handled by the separate audio mix audit.
+- `seed-2-0-lite-260428` listens to each generated chunk for rushed delivery, clipped endings, hard boundaries, masking, and mechanical narration. Failed chunks are regenerated with a compact performance repair contract.
 """,
     )
 
@@ -4199,6 +4364,7 @@ def main() -> int:
     validation = None
     quality = None
     asr_report = None
+    performance = None
     audio = None
     if args.generate:
         references = generate_reference_audio(run_dir)
@@ -4208,16 +4374,24 @@ def main() -> int:
         validation = validate_audio(reference_paths + scene["parts"] + [full])
         quality = audio_quality_report(run_dir, scene["parts"], full)
         asr_report = asr_language_audit(run_dir, scene["logs"])
+        performance = performance_review_report(run_dir, scene["parts"])
         repair_logs = []
         for _repair_attempt in range(1, 3):
-            failed_chunks = failed_quality_chunk_ids(quality) | failed_asr_chunk_ids(asr_report)
+            failed_chunks = (
+                failed_quality_chunk_ids(quality)
+                | failed_asr_chunk_ids(asr_report)
+                | failed_performance_chunk_ids(performance)
+            )
             if not failed_chunks:
                 break
+            performance_repair = apply_performance_repairs(run_dir, performance)
+            write_json(run_dir / "logs" / f"performance_repair_{_repair_attempt}.json", performance_repair)
             repaired_scene = generate_scene_audio(run_dir, failed_chunks)
             full = concat_audio(run_dir, repaired_scene["parts"])
             validation = validate_audio(reference_paths + repaired_scene["parts"] + [full])
             quality = audio_quality_report(run_dir, repaired_scene["parts"], full)
             asr_report = asr_language_audit(run_dir, repaired_scene["logs"])
+            performance = performance_review_report(run_dir, repaired_scene["parts"])
             repair_logs.extend(repaired_scene["logs"])
             scene = {
                 "logs": scene["logs"] + repaired_scene["logs"],
@@ -4235,9 +4409,16 @@ def main() -> int:
         write_json(run_dir / "logs" / "validation_log.json", validation)
         write_json(run_dir / "logs" / "audio_quality_report.json", quality)
         write_json(run_dir / "logs" / "asr_language_report.json", asr_report)
-        audio = {"full": str(full.relative_to(ROOT)), "validation": validation, "quality": quality, "asr": asr_report}
+        write_json(run_dir / "logs" / "performance_review_report.json", performance)
+        audio = {
+            "full": str(full.relative_to(ROOT)),
+            "validation": validation,
+            "quality": quality,
+            "asr": asr_report,
+            "performance": performance,
+        }
         update_manifest(run_dir, "completed")
-    write_analysis(run_dir, build, validation, quality)
+    write_analysis(run_dir, build, validation, quality, performance)
     print(json.dumps({"run_dir": str(run_dir.relative_to(ROOT)), "build": build, "audio": audio}, ensure_ascii=False, indent=2))
     return 0
 

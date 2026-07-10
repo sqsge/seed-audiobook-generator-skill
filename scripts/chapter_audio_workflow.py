@@ -269,15 +269,23 @@ def section_status(section_dir: Path, *, mode: str, roles: dict) -> dict:
     ]
     quality = read_json(section_dir / "logs" / "audio_quality_report.json")
     asr = read_json(section_dir / "logs" / "asr_language_report.json")
+    performance = read_json(section_dir / "logs" / "performance_review_report.json")
     final_audio = find_final_audio(section_dir)
     if mode == "rewrite":
         quality_status = "planned"
         asr_status = "planned"
+        performance_status = "planned"
         passed = rewrite_ok and not speaker_conflicts
     else:
         quality_status = quality.get("status", "missing")
         asr_status = asr.get("status", "missing")
-        passed = quality.get("status") == "pass" and asr.get("status") == "pass" and bool(final_audio)
+        performance_status = performance.get("status", "missing")
+        passed = (
+            quality.get("status") == "pass"
+            and asr.get("status") == "pass"
+            and performance.get("status") == "pass"
+            and bool(final_audio)
+        )
     return {
         "section_id": section_dir.name,
         "rewrite_status": "pass" if rewrite_ok else "missing",
@@ -291,6 +299,8 @@ def section_status(section_dir: Path, *, mode: str, roles: dict) -> dict:
         "quality_fail_reasons": quality.get("fail_reasons", []),
         "asr_status": asr_status,
         "asr_fail_reasons": asr.get("fail_reasons", []),
+        "performance_status": performance_status,
+        "performance_fail_reasons": performance.get("fail_reasons", []),
         "pass": passed,
     }
 
@@ -299,7 +309,13 @@ def section_is_reusable(section_dir: Path, *, mode: str, roles: dict) -> tuple[b
     status = section_status(section_dir, mode=mode, roles=roles)
     if mode == "rewrite":
         return bool(status["pass"]), status
-    return bool(status["pass"] and status.get("final_audio") and status.get("quality_status") == "pass" and status.get("asr_status") == "pass"), status
+    return bool(
+        status["pass"]
+        and status.get("final_audio")
+        and status.get("quality_status") == "pass"
+        and status.get("asr_status") == "pass"
+        and status.get("performance_status") == "pass"
+    ), status
 
 
 def archive_section_dir(section_dir: Path, reason: str) -> Path:
@@ -383,6 +399,7 @@ def chapter_acceptance(
         "all_sections_generated": len(section_reports) == len(chapters),
         "all_sections_quality_pass": None if prepare_only else bool(section_reports) and all(item["quality_status"] == "pass" for item in section_reports),
         "all_sections_asr_pass": None if prepare_only else bool(section_reports) and all(item["asr_status"] == "pass" for item in section_reports),
+        "all_sections_performance_pass": None if prepare_only else bool(section_reports) and all(item.get("performance_status") == "pass" for item in section_reports),
         "stitched_only_after_pass": bool(final_audio) if generate else None,
         "fixed_voice_registry": True,
         "stable_case_directory": str(case_dir.relative_to(ROOT)),
@@ -573,6 +590,7 @@ def main() -> int:
                     "char_count": len(source_text),
                     "quality_status": "planned",
                     "asr_status": "planned",
+                    "performance_status": "planned",
                     "pass": False,
                 }
             )
@@ -612,7 +630,11 @@ def main() -> int:
                 if last_status["pass"]:
                     break
             if section_attempt < max_attempts and section_dir.exists():
-                reason = "returncode" if result.returncode != 0 else f"quality_{(last_status or {}).get('quality_status', 'missing')}_asr_{(last_status or {}).get('asr_status', 'missing')}"
+                reason = "returncode" if result.returncode != 0 else (
+                    f"quality_{(last_status or {}).get('quality_status', 'missing')}_"
+                    f"asr_{(last_status or {}).get('asr_status', 'missing')}_"
+                    f"performance_{(last_status or {}).get('performance_status', 'missing')}"
+                )
                 archive_section_dir(section_dir, reason)
                 time.sleep(2 * section_attempt)
                 continue
@@ -670,7 +692,7 @@ def main() -> int:
     chapter_report = {
         "status": "planned" if args.prepare_only else ("fail" if failed else "pass"),
         "fail_reasons": [
-            f"{item['section_id']}: quality={item['quality_status']} asr={item['asr_status']}"
+            f"{item['section_id']}: quality={item['quality_status']} asr={item['asr_status']} performance={item.get('performance_status', 'missing')}"
             for item in failed
         ],
         "final_audio": final_audio,

@@ -66,13 +66,34 @@ def _media_url(path_or_url: str) -> str:
     return _file_to_data_url(path_or_url)
 
 
-def _build_messages(prompt: str, system: str | None, images: list[str], videos: list[str] | None = None) -> list[dict]:
+def _audio_input(path_or_url: str) -> dict:
+    """Build Ark's audio-content shape from a local file or a remote URL."""
+    if path_or_url.startswith(("http://", "https://")):
+        return {"type": "audio_url", "audio_url": {"url": path_or_url}}
+    path = Path(path_or_url)
+    return {
+        "type": "input_audio",
+        "input_audio": {
+            "data": base64.b64encode(path.read_bytes()).decode("ascii"),
+            "format": path.suffix.lstrip(".").lower() or "wav",
+        },
+    }
+
+
+def _build_messages(
+    prompt: str,
+    system: str | None,
+    images: list[str],
+    videos: list[str] | None = None,
+    audios: list[str] | None = None,
+) -> list[dict]:
     messages: list[dict] = []
     if system:
         messages.append({"role": "system", "content": system})
 
     videos = videos or []
-    if images or videos:
+    audios = audios or []
+    if images or videos or audios:
         content: list[dict] = []
         for image in images:
             image_url = _media_url(image)
@@ -80,6 +101,8 @@ def _build_messages(prompt: str, system: str | None, images: list[str], videos: 
         for video in videos:
             video_url = _media_url(video)
             content.append({"type": "video_url", "video_url": {"url": video_url}})
+        for audio in audios:
+            content.append(_audio_input(audio))
         content.append({"type": "text", "text": prompt})
         messages.append({"role": "user", "content": content})
     else:
@@ -88,14 +111,14 @@ def _build_messages(prompt: str, system: str | None, images: list[str], videos: 
     return messages
 
 
-def _chat_completion(base_url: str, credential: str, payload: dict) -> dict:
+def _chat_completion(base_url: str, credential: str, payload: dict, timeout: int | None = None) -> dict:
     endpoint = f"{base_url.rstrip('/')}/chat/completions"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {credential}",
     }
     request = Request(endpoint, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
-    with urlopen(request, timeout=int(os.getenv("LLM_TIMEOUT", "300"))) as response:
+    with urlopen(request, timeout=timeout or int(os.getenv("LLM_TIMEOUT", "300"))) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -125,6 +148,8 @@ def chat_text(
     api_key: str | None = None,
     temperature: float = 0.2,
     max_tokens: int | None = None,
+    audios: list[str] | None = None,
+    timeout: int | None = None,
 ) -> str:
     """
     Small reusable helper for other scripts in this repo.
@@ -134,12 +159,12 @@ def chat_text(
     resolved_model = _resolve_model(model, resolved_base_url)
     payload: dict = {
         "model": resolved_model,
-        "messages": _build_messages(prompt, system, []),
+        "messages": _build_messages(prompt, system, [], audios=audios),
         "temperature": temperature,
     }
     if max_tokens is not None:
         payload["max_tokens"] = max_tokens
-    result = _chat_completion(resolved_base_url, resolved_credential, payload)
+    result = _chat_completion(resolved_base_url, resolved_credential, payload, timeout=timeout)
     return _extract_text(result).strip()
 
 
@@ -153,6 +178,7 @@ def main() -> int:
     parser.add_argument("--api-key", help="API key override")
     parser.add_argument("--image", nargs="*", default=[], help="Reference images as local paths or URLs")
     parser.add_argument("--video", nargs="*", default=[], help="Reference videos as local paths or URLs")
+    parser.add_argument("--audio", nargs="*", default=[], help="Reference audio as local paths or URLs")
     parser.add_argument("--temperature", type=float, default=0.7, help="Sampling temperature")
     parser.add_argument("--max-tokens", type=int, help="Max output tokens")
     parser.add_argument("--json", action="store_true", help="Print raw JSON response")
@@ -171,7 +197,7 @@ def main() -> int:
 
     payload: dict = {
         "model": model,
-        "messages": _build_messages(prompt, args.system or None, args.image, args.video),
+        "messages": _build_messages(prompt, args.system or None, args.image, args.video, args.audio),
         "temperature": args.temperature,
     }
     if args.max_tokens is not None:

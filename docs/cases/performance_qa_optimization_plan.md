@@ -16,7 +16,7 @@ The goal of this branch is to add workflow-level safeguards for performance qual
 
 ## Planned Workflow Changes
 
-1. Add a `performance_pass` gate after existing duration, silence, ASR, and coverage checks.
+1. Add a `performance_pass` gate after existing duration, silence, ASR, and coverage checks. Implemented with `seed-2-0-lite-260428`, the currently available Ark model name for the requested 0428 Lite family.
 2. Use an audio-capable reviewer model to review every generated chunk or stitched section for:
    - rushed delivery
    - clipped phonemes or cut-off line endings
@@ -31,7 +31,15 @@ The goal of this branch is to add workflow-level safeguards for performance qual
    - clearer priority between speech, action SFX, ambience, and music
 5. Add repair routing:
    - failed chunks should be regenerated with slower delivery and safer boundary prompts
-   - accepted chunks should be reused
+- accepted chunks should be reused
+
+## Implemented Strategy
+
+- English action chunks now default to neutral speed rather than an elevated global speech-rate value.
+- Seed 2.0 is explicitly told to express urgency with acting, music, and action sound, while preserving breaths, consonants, complete thoughts, and a natural ambience tail.
+- Timing post-processing is disabled by default. The workflow no longer removes internal quiet audio or trims the stitched tail unless `SEED_AUDIO_POSTPROCESS_TIMING=true` is deliberately set.
+- Each generated chunk is reviewed as audio, not inferred from prompt text. Major performance defects trigger a local prompt overlay and a lower-rate regeneration of only that chunk.
+- If the reviewer service is unavailable, the run fails the performance gate without wasting extra generation retries; the generated artifacts remain available for diagnosis.
 
 ## Acceptance Standard
 

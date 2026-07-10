@@ -66,13 +66,34 @@ def _media_url(path_or_url: str) -> str:
     return _file_to_data_url(path_or_url)
 
 
-def _build_messages(prompt: str, system: str | None, images: list[str], videos: list[str] | None = None) -> list[dict]:
+def _audio_content(path_or_url: str) -> dict:
+    """Build the OpenAI-compatible audio input block used by Seed multimodal chat."""
+    if path_or_url.startswith(("http://", "https://")):
+        return {"type": "input_audio", "input_audio": {"url": path_or_url}}
+    path = Path(path_or_url)
+    return {
+        "type": "input_audio",
+        "input_audio": {
+            "data": base64.b64encode(path.read_bytes()).decode("ascii"),
+            "format": path.suffix.lstrip(".").lower() or "wav",
+        },
+    }
+
+
+def _build_messages(
+    prompt: str,
+    system: str | None,
+    images: list[str],
+    videos: list[str] | None = None,
+    audios: list[str] | None = None,
+) -> list[dict]:
     messages: list[dict] = []
     if system:
         messages.append({"role": "system", "content": system})
 
     videos = videos or []
-    if images or videos:
+    audios = audios or []
+    if images or videos or audios:
         content: list[dict] = []
         for image in images:
             image_url = _media_url(image)
@@ -80,6 +101,8 @@ def _build_messages(prompt: str, system: str | None, images: list[str], videos: 
         for video in videos:
             video_url = _media_url(video)
             content.append({"type": "video_url", "video_url": {"url": video_url}})
+        for audio in audios:
+            content.append(_audio_content(audio))
         content.append({"type": "text", "text": prompt})
         messages.append({"role": "user", "content": content})
     else:
@@ -143,6 +166,34 @@ def chat_text(
     return _extract_text(result).strip()
 
 
+def chat_audio(
+    prompt: str,
+    audio_paths: list[str],
+    *,
+    system: str | None = None,
+    model: str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    temperature: float = 0.1,
+    max_tokens: int | None = None,
+) -> str:
+    """Ask a multimodal chat model to review one or more local audio files."""
+    if not audio_paths:
+        raise ValueError("chat_audio requires at least one audio path")
+    resolved_base_url = _resolve_base_url(base_url)
+    resolved_credential = _resolve_api_key(api_key)
+    resolved_model = _resolve_model(model, resolved_base_url)
+    payload: dict = {
+        "model": resolved_model,
+        "messages": _build_messages(prompt, system, [], audios=audio_paths),
+        "temperature": temperature,
+    }
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
+    result = _chat_completion(resolved_base_url, resolved_credential, payload)
+    return _extract_text(result).strip()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Call an OpenAI-compatible chat model.")
     parser.add_argument("-p", "--prompt", help="User prompt")
@@ -153,6 +204,7 @@ def main() -> int:
     parser.add_argument("--api-key", help="API key override")
     parser.add_argument("--image", nargs="*", default=[], help="Reference images as local paths or URLs")
     parser.add_argument("--video", nargs="*", default=[], help="Reference videos as local paths or URLs")
+    parser.add_argument("--audio", nargs="*", default=[], help="Reference audio as local paths or URLs")
     parser.add_argument("--temperature", type=float, default=0.7, help="Sampling temperature")
     parser.add_argument("--max-tokens", type=int, help="Max output tokens")
     parser.add_argument("--json", action="store_true", help="Print raw JSON response")
@@ -171,7 +223,7 @@ def main() -> int:
 
     payload: dict = {
         "model": model,
-        "messages": _build_messages(prompt, args.system or None, args.image, args.video),
+        "messages": _build_messages(prompt, args.system or None, args.image, args.video, args.audio),
         "temperature": args.temperature,
     }
     if args.max_tokens is not None:

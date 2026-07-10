@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -25,11 +26,16 @@ PRODUCTION_MODE = "audio_drama_adaptation"
 WORKFLOW_INPUT_MODE = "story_config"
 REWRITE_MODEL = "seed-2-0-pro-260328"
 AUDIO_MODEL = "seed-audio-1.0"
+AUDIO_REVIEW_MODEL = os.getenv("SEED_AUDIO_REVIEW_MODEL", "seed-2-0-lite-260428")
 VOICE_REGISTRY_VERSION = "voice_registry_seed2pro_20260702_001"
 MAX_PROMPT_CHARS = int(os.getenv("SEED_AUDIO_MAX_CHARS", "3000"))
 TARGET_AUDIO_PROMPT_CHARS = int(os.getenv("SEED_AUDIO_TARGET_CHARS", "2200"))
 TARGET_SPEECH_RATE = 24
 ENGLISH_TARGET_SPEECH_RATE = int(os.getenv("SEED_AUDIO_EN_SPEECH_RATE", "4"))
+DESTRUCTIVE_TIMING_POSTPROCESS = os.getenv("SEED_AUDIO_DESTRUCTIVE_TIMING", "false").lower() in {"1", "true", "yes"}
+PERFORMANCE_REPAIR_ATTEMPTS = max(0, int(os.getenv("SEED_AUDIO_REPAIR_ATTEMPTS", "2")))
+DEFAULT_ASR_MODE = os.getenv("SEED_AUDIO_ASR_MODE", "off")
+DEFAULT_PERFORMANCE_MODE = os.getenv("SEED_AUDIO_PERFORMANCE_MODE", "balanced")
 HK_TZ = timezone(timedelta(hours=8))
 
 ROLE_SPECS = {
@@ -820,8 +826,8 @@ Hard requirements:
 4. Choose default_speaker values only from this candidate list: {json.dumps(speaker_candidates, ensure_ascii=False)}. Reuse candidates if there are more roles than candidates.
 5. parsed_source_units must infer type, speaker, emotion, narration_style, delivery, sfx_before, sfx_during, sfx_after, music_intent.
 6. quoted_text units must map to a specific role when possible. If speaker cannot be inferred, use Narrator and explain in speaker_evidence.
-7. Create chunk_plan automatically. Each chunk should be a coherent cinematic sound scene, not a fixed character count.
-8. Chunk constraints: target 1-2 chunks for a 2-minute excerpt; use 3 chunks only if a final_audio_prompt would exceed {MAX_PROMPT_CHARS} chars. Every character who has quoted dialogue in a chunk must be included in that chunk's active_roles and get a reference marker. If more than 3 characters need quoted dialogue, split the chunk instead of letting an unreferenced character speak.
+7. Create chunk_plan automatically after parsing the source. Each chunk is a coherent cinematic performance window, not a fixed character count. Do not make one oversized prompt cover a whole section just because it is under the character limit.
+8. Chunk constraints: split at story turns, location/ambience changes, speaker hand-offs, or dense action. Prefer compact windows with enough room for natural breaths, complete sentence endings, and source-motivated sound. Every character who has quoted dialogue in a chunk must be included in that chunk's active_roles and get a reference marker. If more than 3 characters need quoted dialogue, split the chunk instead of letting an unreferenced character speak.
 9. For each chunk, infer:
    - title
    - source_unit_ids
@@ -829,7 +835,7 @@ Hard requirements:
    - persistent_ambience from place/time/space
    - music_bed with concrete style, instruments, rhythm, and emotional function
    - sound_design with action-anchored SFX
-   - speech_rate from 12 to 24, adaptive to scene pace
+   - speech_rate from 0 to 10. Use performance direction, music, and SFX to create urgency; never turn action into rushed speech.
    - pace_note
    - continuity fields
    - expected_duration_sec
@@ -1837,6 +1843,8 @@ def clean_english_director_text(value: str) -> str:
     text = re.sub(r"\blong\s+heavy\s+silences?\s+between\s+every\s+line\b", "connected transitions between lines", text, flags=re.I)
     text = re.sub(r"\bpauses?\s+are\s+long\b", "pauses are brief and natural", text, flags=re.I)
     text = re.sub(r"\bno\s+rushing\b", "natural pace without rushing", text, flags=re.I)
+    text = re.sub(r"\bflat\s+fast,?\s*no\s+pause\b", "tense but naturally articulated, with complete phrases", text, flags=re.I)
+    text = re.sub(r"\bno\s+pause\b", "connected natural phrasing", text, flags=re.I)
     text = re.sub(r"\bevery\s+word\s+lands?\s+with\s+weight\b", "important words are clear without dragging", text, flags=re.I)
     text = re.sub(r"\babsolute\s+stillness\b", "low continuous room tone", text, flags=re.I)
     text = re.sub(r"\bNo\s+rhythm\b", "slow subtle pulse", text, flags=re.I)
@@ -1876,6 +1884,9 @@ def clean_english_director_text(value: str) -> str:
     text = re.sub(r"\ballow\s+silence\s+between\s+lines\b", "keep transitions connected", text, flags=re.I)
     text = re.sub(r"\bbefore\s+([A-Za-z][A-Za-z ]{0,40})\s+speaks\b", r"before \1 line", text, flags=re.I)
     text = re.sub(r"\bspeaks\b", "line", text, flags=re.I)
+    text = re.sub(r"\bEnd\s+(?:scene|segment)\.?", "let the existing ambience settle naturally", text, flags=re.I)
+    text = re.sub(r"\bno\s+fade\s+out\b", "keep the sound bed continuous", text, flags=re.I)
+    text = re.sub(r"([A-Za-z])[-–—]\s*\"", r'\1."', text)
     text = re.sub(r"\s+", " ", text).strip(" ,.;")
     return text
 
@@ -1886,6 +1897,16 @@ def audio_safe_pace_note(value: str) -> str:
     if risky or not text:
         return "natural measured pace, emotionally tense but connected, brief natural beats only, no empty gaps"
     return compact_clause_text(text, "natural measured pace, connected transitions, no empty gaps", 120)
+
+
+def safe_english_speech_rate(value: object, narrator_units: int = 0) -> int:
+    requested = int(value if value is not None else ENGLISH_TARGET_SPEECH_RATE)
+    if not is_english_prompt():
+        return requested
+    # Seed Audio speech_rate is an API speed adjustment, not a dramatic-intensity
+    # score. Narration-heavy action becomes artificial and clips phonemes above
+    # a modest positive adjustment.
+    return max(-5, min(requested, 8 if narrator_units else 10))
 
 
 def english_score_bible() -> str:
@@ -2490,7 +2511,16 @@ def ensure_narration_bridges_in_prompt(prompt: str, chunk: dict, refs: dict[str,
     if not narrator_ref:
         return prompt
     bridges = [clean_prompt_quote_text(item) for item in chunk.get("narration_bridge", []) if str(item).strip()]
-    bridges = [item for item in bridges if item and normalized_fragment(item) not in normalized_fragment(prompt)]
+    prompt_words = set(re.findall(r"[a-z']+", prompt.lower()))
+    bridges = [
+        item for item in bridges
+        if item
+        and normalized_fragment(item) not in normalized_fragment(prompt)
+        and (
+            not (bridge_words := set(re.findall(r"[a-z']+", item.lower())))
+            or len(bridge_words & prompt_words) / len(bridge_words) < 0.65
+        )
+    ]
     if not bridges:
         return prompt
     lines = [
@@ -2511,6 +2541,19 @@ def ensure_english_nonspoken_rule(prompt: str) -> str:
     if rule in prompt:
         return prompt
     return f"{prompt}\n{rule}"
+
+
+def ensure_complete_audio_tail(prompt: str) -> str:
+    rule = (
+        "After the final spoken line finishes completely, keep the existing ambience briefly, then settle naturally "
+        "without cutting the final word or phoneme."
+    )
+    prompt = re.sub(r"\bEnd\s+(?:scene|segment)\.?", "", prompt, flags=re.I)
+    prompt = re.sub(r"\bno\s+fade\s+out\b", "keep the sound bed continuous", prompt, flags=re.I)
+    prompt = re.sub(r"([A-Za-z])[-–—]\s*\"", r'\1."', prompt)
+    if rule not in prompt and len(prompt) + len(rule) + 1 <= MAX_PROMPT_CHARS:
+        prompt = f"{prompt.rstrip()}\n{rule}"
+    return prompt
 
 
 def english_plan_dialogue_lines(chunk: dict, parsed_by_id: dict, active_roles: list[str], refs: dict[str, str], max_lines: int = 5) -> list[str]:
@@ -2663,9 +2706,11 @@ def compose_english_director_prompt(chunk: dict, parsed_by_id: dict, index: int,
         prompt = ensure_english_nonspoken_rule(prompt)
         if prompt_needs_engineering_repair(prompt, chunk, active_roles):
             prompt = build_official_english_prompt_from_plan(chunk, parsed_by_id, active_roles, refs, index, total)
+        prompt = ensure_complete_audio_tail(prompt)
         return prompt, active_roles
     if is_auto_planning():
-        return build_official_english_prompt_from_plan(chunk, parsed_by_id, active_roles, refs, index, total), active_roles
+        prompt = build_official_english_prompt_from_plan(chunk, parsed_by_id, active_roles, refs, index, total)
+        return ensure_complete_audio_tail(prompt), active_roles
     first_seen: set[str] = set()
     ambience = clean_english_director_text(chunk.get("persistent_ambience", "cold night air, stone reverb, faint magical static"))
     sound_design = clean_english_director_text(chunk.get("sound_design", "stone ambience, movement, object and action sounds"))
@@ -2712,7 +2757,7 @@ def compose_english_director_prompt(chunk: dict, parsed_by_id: dict, index: int,
         lines.append("The shared score resolves after one brief final cliffhanger beat while the stone ambience fades naturally.")
     else:
         lines.append("The same ambience and shared score carry forward without a cadence.")
-    return "\n".join(lines), active_roles
+    return ensure_complete_audio_tail("\n".join(lines)), active_roles
 
 
 def compose_director_prompt(chunk: dict, parsed_by_id: dict, index: int, total: int) -> tuple[str, list[str]]:
@@ -2896,6 +2941,7 @@ def normalize_rewrite(data: dict, source_units: list[dict]) -> dict:
         music_actions = english_music_actions(index, len(plans)) if is_english_prompt() else ["enter", "duck", "swell", "fade"]
         narrator_count = sum(1 for unit_id in unit_ids if parsed_by_id[unit_id].get("speaker") == "Narrator")
         dialogue_count = len(unit_ids) - narrator_count
+        safe_speech_rate = safe_english_speech_rate(plan.get("speech_rate", TARGET_SPEECH_RATE), narrator_count)
         source_sfx_count = sum(
             len(parsed_by_id[unit_id].get("sfx_before", []))
             + len(parsed_by_id[unit_id].get("sfx_during", []))
@@ -2929,14 +2975,14 @@ def normalize_rewrite(data: dict, source_units: list[dict]) -> dict:
                     "sfx_cue_limit": None if is_english_prompt() else None,
                     "music_actions": music_actions,
                     "prompt_chars": len(prompt),
-                    "speech_rate": plan.get("speech_rate", TARGET_SPEECH_RATE),
+                    "speech_rate": safe_speech_rate,
                     "uses_seed_final_audio_prompt": bool(is_auto_planning() and is_english_prompt() and seed_final_audio_prompt(plan)),
                     **performance_metrics,
                     **best_practice_metrics,
                     **coverage_metrics,
                 },
                 "continuity": plan.get("continuity", {}),
-                "speech_rate": plan.get("speech_rate", TARGET_SPEECH_RATE),
+                "speech_rate": safe_speech_rate,
                 "pace_note": plan.get("pace_note", ""),
             }
         )
@@ -3513,13 +3559,17 @@ def compress_internal_silence(path: Path, max_internal_sec: float = 1.35, keep_s
 
 def normalize_audio_timing(path: Path) -> dict:
     before = audio_duration(path)
-    trim_trailing_silence(path)
-    compressed = compress_internal_silence(path)
-    trim_trailing_silence(path)
+    if DESTRUCTIVE_TIMING_POSTPROCESS:
+        trim_trailing_silence(path)
+        compressed = compress_internal_silence(path)
+        trim_trailing_silence(path)
+    else:
+        compressed = False
     return {
         "duration_before_timing_normalization_sec": before,
         "duration_after_timing_normalization_sec": audio_duration(path),
         "internal_silence_compressed": compressed,
+        "destructive_timing_postprocess_enabled": DESTRUCTIVE_TIMING_POSTPROCESS,
     }
 
 
@@ -3600,12 +3650,18 @@ def generate_reference_audio(run_dir: Path) -> dict:
         if result.returncode != 0:
             raise SystemExit(f"Reference generation failed for {key}: {result.stderr.strip()}")
         rewrap_audio(raw_path, clean_path)
-        trim_trailing_silence(clean_path)
+        if DESTRUCTIVE_TIMING_POSTPROCESS:
+            trim_trailing_silence(clean_path)
     return outputs
 
 
-def generate_scene_audio(run_dir: Path, force_chunk_ids: set[str] | None = None) -> dict:
+def generate_scene_audio(
+    run_dir: Path,
+    force_chunk_ids: set[str] | None = None,
+    repair_notes: dict[str, str] | None = None,
+) -> dict:
     force_chunk_ids = force_chunk_ids or set()
+    repair_notes = repair_notes or {}
     logs = []
     parts = []
     for prompt_path in sorted((run_dir / "05_director_prompt_chunks").glob("chunk_*.txt")):
@@ -3621,6 +3677,28 @@ def generate_scene_audio(run_dir: Path, force_chunk_ids: set[str] | None = None)
         clean_path = run_dir / "07_audio_parts" / f"{prompt_path.stem}.wav"
         speech_rate = int(request.get("audio_config", {}).get("speech_rate", TARGET_SPEECH_RATE))
         force_regenerate = prompt_path.stem in force_chunk_ids
+        render_prompt_path = prompt_path
+        repair_note = repair_notes.get(prompt_path.stem, "").strip()
+        if force_regenerate and (raw_path.exists() or clean_path.exists()):
+            revision_dir = run_dir / "07_audio_revisions" / prompt_path.stem / now_hk().strftime("%Y%m%d-%H%M%S")
+            revision_dir.mkdir(parents=True, exist_ok=True)
+            for source in (raw_path, raw_path.with_suffix(raw_path.suffix + ".meta.json"), clean_path, prompt_path):
+                if source.exists():
+                    shutil.copy2(source, revision_dir / source.name)
+        if force_regenerate and repair_note:
+            if re.search(r"rushed|clipp|cut.?off|garbl|unintellig|articul|pacing", repair_note, re.I):
+                speech_rate = min(speech_rate, 2)
+            render_prompt_path = run_dir / "05_director_prompt_chunks" / "repairs" / prompt_path.name
+            repaired_prompt = (
+                clean_english_director_text(prompt_path.read_text(encoding="utf-8")).rstrip()
+                + "\n\nPerformance repair: "
+                + repair_note
+                + " Use measured natural articulation. Keep one voice at a time and complete every sentence ending."
+            )
+            write_text(
+                render_prompt_path,
+                ensure_complete_audio_tail(repaired_prompt),
+            )
         if not force_regenerate and not audio_decodes(clean_path) and audio_decodes(raw_path):
             rewrap_audio(raw_path, clean_path)
             normalize_audio_timing(clean_path)
@@ -3646,7 +3724,7 @@ def generate_scene_audio(run_dir: Path, force_chunk_ids: set[str] | None = None)
             sys.executable,
             str(SEED_AUDIO_CLIENT),
             "--text-file",
-            str(prompt_path.relative_to(ROOT)),
+            str(render_prompt_path.relative_to(ROOT)),
             *reference_args,
             "--out",
             str(raw_path.relative_to(ROOT)),
@@ -3685,6 +3763,7 @@ def generate_scene_audio(run_dir: Path, force_chunk_ids: set[str] | None = None)
             "stderr": result.stderr.strip(),
             "attempts": attempts,
             "force_regenerate": force_regenerate,
+            "repair_note": repair_note,
         }
         logs.append(log)
         if result.returncode != 0:
@@ -3722,7 +3801,8 @@ def concat_audio(run_dir: Path, parts: list[Path]) -> Path:
     )
     if result.returncode != 0:
         raise SystemExit(f"ffmpeg concat failed: {result.stderr.strip()}")
-    trim_trailing_silence(out)
+    if DESTRUCTIVE_TIMING_POSTPROCESS:
+        trim_trailing_silence(out)
     part_durations = [audio_duration(path) for path in parts]
     expected_duration = sum(duration for duration in part_durations if duration is not None)
     stitched_duration = audio_duration(out)
@@ -3798,7 +3878,37 @@ def transcript_language_metrics(text: str) -> dict:
     }
 
 
+def transcript_dialogue_coverage(transcript: str, request: dict) -> dict:
+    """A tolerant ASR gate for required dialogue in an adapted audio drama."""
+    transcript_words = set(re.findall(r"[a-z']+", transcript.lower()))
+    required = [
+        item for item in request.get("must_keep_dialogue", [])
+        if isinstance(item, dict) and str(item.get("text", "")).strip()
+    ]
+    covered = 0
+    missing: list[str] = []
+    for item in required:
+        text = str(item.get("text", ""))
+        words = [word for word in re.findall(r"[a-z']+", text.lower()) if len(word) > 2]
+        if not words:
+            continue
+        overlap = sum(word in transcript_words for word in set(words)) / len(set(words))
+        if overlap >= 0.6:
+            covered += 1
+        else:
+            missing.append(text[:120])
+    return {
+        "must_keep_dialogue_count": len(required),
+        "must_keep_dialogue_covered_count": covered,
+        "missing_must_keep_dialogue": missing,
+    }
+
+
 def asr_language_audit(run_dir: Path, scene_logs: list[dict]) -> dict:
+    requests = {
+        path.stem: json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted((run_dir / "06_generation_requests").glob("chunk_*.json"))
+    }
     reports = []
     fail_reasons: list[str] = []
     for log in scene_logs:
@@ -3827,6 +3937,7 @@ def asr_language_audit(run_dir: Path, scene_logs: list[dict]) -> dict:
             report["task_id"] = task_id
             report["transcript"] = transcript
             report["metrics"] = transcript_language_metrics(transcript)
+            report["dialogue_coverage"] = transcript_dialogue_coverage(transcript, requests.get(chunk_id, {}))
             write_json(run_dir / "logs" / f"asr_{chunk_id}_raw.json", result)
             write_text(run_dir / "logs" / f"asr_{chunk_id}_transcript.txt", transcript)
             if is_english_prompt() and report["metrics"].get("cjk_char_count", 0) > 0:
@@ -3837,6 +3948,10 @@ def asr_language_audit(run_dir: Path, scene_logs: list[dict]) -> dict:
                 report["status"] = "fail"
                 report["reasons"].append("asr_too_few_english_words")
                 fail_reasons.append(f"{chunk_id}: asr_too_few_english_words")
+            if report["dialogue_coverage"].get("missing_must_keep_dialogue"):
+                report["status"] = "fail"
+                report["reasons"].append("asr_missing_must_keep_dialogue")
+                fail_reasons.append(f"{chunk_id}: asr_missing_must_keep_dialogue")
         except Exception as exc:
             report["status"] = "fail"
             report["reasons"].append(f"asr_failed: {exc}")
@@ -3847,10 +3962,154 @@ def asr_language_audit(run_dir: Path, scene_logs: list[dict]) -> dict:
         "fail_reasons": fail_reasons,
         "policy": {
             "english_output": "ASR transcript must not contain CJK characters for English-mode generations.",
+            "dialogue_coverage": "Required dialogue is checked with tolerant content-word overlap so adapted punctuation and ASR casing do not cause a false fail.",
             "source": "Seed Audio temporary URL captured from the same generation response.",
         },
         "chunks": reports,
     }
+
+
+PERFORMANCE_FAILURES = {
+    "rushed_or_unnatural_pacing",
+    "clipped_word_or_sentence_ending",
+    "hard_boundary_or_abrupt_cut",
+    "voice_masked_by_music_or_sfx",
+    "mechanical_narration",
+    "overlapping_voices",
+}
+
+
+def performance_review_prompt(chunk_id: str, request: dict) -> str:
+    """Keep the listening task narrow so it judges the render, not the story genre."""
+    return f"""You are the final listening reviewer for one English audio-drama chunk.
+Listen to the attached audio, not only to the written intent. Check whether the spoken English is naturally performed and fully audible.
+
+Chunk id: {chunk_id}
+Expected voices: {', '.join(request.get('active_roles', [])) or 'unknown'}
+Expected pace: {request.get('pace_note', 'natural adaptive pace')}
+
+Fail only for an audible problem: rushed_or_unnatural_pacing, clipped_word_or_sentence_ending,
+hard_boundary_or_abrupt_cut, voice_masked_by_music_or_sfx, mechanical_narration, or overlapping_voices.
+Do not fail because an audio drama has music, ambience, action effects, or a brief intentional dramatic pause.
+Return one JSON object only:
+{{
+  "verdict": "pass" | "fail",
+  "issues": [{{"type": "one allowed failure type", "severity": "minor|major", "evidence": "short audible evidence"}}],
+  "repair_instruction": "one concise generation instruction, or empty when pass",
+  "summary": "one concise sentence"
+}}"""
+
+
+def performance_audio_audit(run_dir: Path, parts: list[Path]) -> dict:
+    requests = {
+        path.stem: json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted((run_dir / "06_generation_requests").glob("chunk_*.json"))
+    }
+    reports: list[dict] = []
+    unavailable: list[str] = []
+    for part in parts:
+        chunk_id = part.stem
+        request = requests.get(chunk_id, {})
+        report = {
+            "chunk_id": chunk_id,
+            "model": AUDIO_REVIEW_MODEL,
+            "status": "unavailable",
+            "verdict": None,
+            "issues": [],
+            "repair_instruction": "",
+            "summary": "",
+        }
+        try:
+            response = llm_chat.chat_audio(
+                performance_review_prompt(chunk_id, request),
+                [str(part)],
+                system="You are a strict but fair audio-quality reviewer. Return JSON only.",
+                model=AUDIO_REVIEW_MODEL,
+                temperature=0.0,
+                max_tokens=900,
+            )
+            write_text(run_dir / "logs" / f"performance_{chunk_id}_response.txt", response)
+            payload = extract_json(response)
+            issues = [
+                item for item in payload.get("issues", [])
+                if isinstance(item, dict) and item.get("type") in PERFORMANCE_FAILURES
+            ]
+            verdict = str(payload.get("verdict", "")).lower()
+            report.update(
+                {
+                    "verdict": verdict,
+                    "issues": issues,
+                    "repair_instruction": str(payload.get("repair_instruction", "")).strip(),
+                    "summary": str(payload.get("summary", "")).strip(),
+                }
+            )
+            report["status"] = "fail" if verdict == "fail" and issues else "pass"
+            if verdict not in {"pass", "fail"}:
+                report["status"] = "unavailable"
+                report["summary"] = "Reviewer returned no usable verdict."
+        except BaseException as exc:
+            report["summary"] = f"reviewer_unavailable: {str(exc)[:300]}"
+            unavailable.append(chunk_id)
+        reports.append(report)
+        if report["status"] == "unavailable" and chunk_id not in unavailable:
+            unavailable.append(chunk_id)
+    failed = [item["chunk_id"] for item in reports if item["status"] == "fail"]
+    return {
+        "status": "fail" if failed else ("unavailable" if unavailable else "pass"),
+        "delivery_status": "fail" if failed or unavailable else "pass",
+        "preview_status": "available" if parts else "missing",
+        "failed_chunk_ids": failed,
+        "unavailable_chunk_ids": unavailable,
+        "policy": {
+            "model": AUDIO_REVIEW_MODEL,
+            "preview": "Generated audio is retained when the reviewer is unavailable.",
+            "delivery": "A delivery pass requires a successful reviewer verdict for every generated chunk.",
+        },
+        "chunks": reports,
+    }
+
+
+def performance_repair_notes(report: dict | None) -> dict[str, str]:
+    if not report:
+        return {}
+    return {
+        item["chunk_id"]: item.get("repair_instruction") or "Use measured natural pacing, complete every word ending, and preserve a natural room-tone tail."
+        for item in report.get("chunks", [])
+        if item.get("status") == "fail" and item.get("chunk_id")
+    }
+
+
+def performance_gate(report: dict, mode: str) -> dict:
+    critical_types = {
+        "rushed_or_unnatural_pacing",
+        "clipped_word_or_sentence_ending",
+        "hard_boundary_or_abrupt_cut",
+        "voice_masked_by_music_or_sfx",
+        "mechanical_narration",
+        "overlapping_voices",
+    }
+    failed: list[str] = []
+    if mode in {"balanced", "required"}:
+        for item in report.get("chunks", []):
+            if item.get("status") != "fail" or not item.get("chunk_id"):
+                continue
+            issues = item.get("issues", [])
+            if mode == "required" or any(
+                issue.get("severity") == "major" and issue.get("type") in critical_types
+                for issue in issues if isinstance(issue, dict)
+            ):
+                failed.append(item["chunk_id"])
+    unavailable = report.get("unavailable_chunk_ids", []) if mode == "required" else []
+    report["mode"] = mode
+    report["gate_failed_chunk_ids"] = failed
+    report["gate_status"] = "fail" if failed or unavailable else ("skipped" if mode == "off" else "pass")
+    return report
+
+
+def asr_gate(report: dict, mode: str) -> dict:
+    report["mode"] = mode
+    report["gate_status"] = report.get("status") if mode == "required" else ("skipped" if mode == "off" else "pass")
+    return report
 
 
 def audio_quality_report(run_dir: Path, parts: list[Path], full: Path) -> dict:
@@ -4023,6 +4282,9 @@ def audio_quality_report(run_dir: Path, parts: list[Path], full: Path) -> dict:
         if report["sfx_cue_limit"] is not None and report["rendered_sfx_cues"] > report["sfx_cue_limit"]:
             report["needs_regeneration"] = True
             report["reasons"].append("sfx_density_over_limit")
+        core_reasons = [reason for reason in report["reasons"] if reason in {"invalid_or_too_short_audio"}]
+        report["core_reasons"] = core_reasons
+        report["core_needs_regeneration"] = bool(core_reasons)
         if report["needs_regeneration"]:
             fail_reasons.append(f"{part.stem}: {', '.join(report['reasons'])}")
         chunk_reports.append(report)
@@ -4032,8 +4294,14 @@ def audio_quality_report(run_dir: Path, parts: list[Path], full: Path) -> dict:
         item for item in final_silences
         if final_duration is not None and (item["end_sec"] or final_duration) >= final_duration - 0.25
     ]
+    core_fail_reasons = [
+        f"{item['chunk_id']}: {', '.join(item.get('core_reasons', []))}"
+        for item in chunk_reports if item.get("core_needs_regeneration")
+    ]
     return {
         "status": "fail" if fail_reasons else "pass",
+        "core_status": "fail" if core_fail_reasons else "pass",
+        "core_fail_reasons": core_fail_reasons,
         "fail_reasons": fail_reasons,
         "policy": {
             "silence_threshold_db": "-45dB",
@@ -4056,17 +4324,10 @@ def audio_quality_report(run_dir: Path, parts: list[Path], full: Path) -> dict:
 
 
 def failed_quality_chunk_ids(quality: dict) -> set[str]:
-    non_retriable = {
-        "duration_much_shorter_than_playable_text_estimate",
-        "audio_drama_duration_suspiciously_short",
-        "long_internal_silence",
-        "tail_silence_over_limit",
-    }
     return {
         chunk.get("chunk_id")
         for chunk in quality.get("chunks", [])
-        if chunk.get("needs_regeneration") and chunk.get("chunk_id")
-        and not set(chunk.get("reasons", [])) <= non_retriable
+        if chunk.get("core_needs_regeneration") and chunk.get("chunk_id")
     }
 
 
@@ -4096,7 +4357,13 @@ def validate_audio(paths: list[Path]) -> dict:
     return report
 
 
-def write_analysis(run_dir: Path, build: dict, validation: dict | None, quality: dict | None = None) -> None:
+def write_analysis(
+    run_dir: Path,
+    build: dict,
+    validation: dict | None,
+    quality: dict | None = None,
+    performance: dict | None = None,
+) -> None:
     validation_text = "Generation not run yet."
     if validation:
         validation_text = "\n".join(
@@ -4106,6 +4373,14 @@ def write_analysis(run_dir: Path, build: dict, validation: dict | None, quality:
     quality_text = "Generation not run yet."
     if quality:
         quality_text = f"- Status: `{quality['status']}`\n- Fail reasons: {quality.get('fail_reasons', [])}\n- Final duration: {quality.get('final_audio', {}).get('duration_sec')}"
+    performance_text = "Generation not run yet."
+    if performance:
+        performance_text = (
+            f"- Status: `{performance.get('status')}`\n"
+            f"- Delivery status: `{performance.get('delivery_status')}`\n"
+            f"- Failed chunks: {performance.get('failed_chunk_ids', [])}\n"
+            f"- Reviewer unavailable: {performance.get('unavailable_chunk_ids', [])}"
+        )
     write_text(
         run_dir / "09_stage_effect_analysis.md",
         f"""# Doc-Compliant Seed 2.0 Pro Rewrite Workflow
@@ -4125,6 +4400,10 @@ def write_analysis(run_dir: Path, build: dict, validation: dict | None, quality:
 ## Audio Quality Report
 
 {quality_text}
+
+## Performance Review
+
+{performance_text}
 
 ## Compliance Notes
 
@@ -4162,6 +4441,12 @@ def main() -> int:
     parser.add_argument("--language", default="en", help="Source language for --source-file: en or zh. Default: en.")
     parser.add_argument("--mode", default="audio_drama_adaptation", help="Production mode for --source-file.")
     parser.add_argument("--source-title", help="Optional source title for --source-file.")
+    parser.add_argument("--asr-mode", choices=["off", "diagnostic", "required"], default=DEFAULT_ASR_MODE)
+    parser.add_argument(
+        "--performance-mode",
+        choices=["off", "diagnostic", "balanced", "required"],
+        default=DEFAULT_PERFORMANCE_MODE,
+    )
     args = parser.parse_args()
     if args.output_root:
         output_root = Path(args.output_root)
@@ -4199,25 +4484,72 @@ def main() -> int:
     validation = None
     quality = None
     asr_report = None
+    performance_report = None
     audio = None
     if args.generate:
+        update_manifest(run_dir, "generation_in_progress")
         references = generate_reference_audio(run_dir)
         scene = generate_scene_audio(run_dir)
         full = concat_audio(run_dir, scene["parts"])
         reference_paths = [Path(item["path"]) for item in references.values() if item.get("path")]
         validation = validate_audio(reference_paths + scene["parts"] + [full])
         quality = audio_quality_report(run_dir, scene["parts"], full)
-        asr_report = asr_language_audit(run_dir, scene["logs"])
+        write_json(run_dir / "logs" / "validation_log.json", validation)
+        write_json(run_dir / "logs" / "audio_quality_report.json", quality)
+        update_manifest(run_dir, "asr_in_progress")
+        if args.asr_mode == "off":
+            asr_report = {"status": "skipped", "chunks": [], "fail_reasons": [], "policy": {"reason": "ASR disabled by workflow profile."}}
+        else:
+            asr_report = asr_language_audit(run_dir, scene["logs"])
+        asr_report = asr_gate(asr_report, args.asr_mode)
+        write_json(run_dir / "logs" / "asr_language_report.json", asr_report)
+        update_manifest(run_dir, "performance_review_in_progress")
+        if args.performance_mode == "off":
+            performance_report = {
+                "status": "skipped",
+                "preview_status": "available",
+                "failed_chunk_ids": [],
+                "unavailable_chunk_ids": [],
+                "chunks": [],
+            }
+        else:
+            performance_report = performance_audio_audit(run_dir, scene["parts"])
+        performance_report = performance_gate(performance_report, args.performance_mode)
+        write_json(run_dir / "logs" / "performance_review_report.json", performance_report)
         repair_logs = []
-        for _repair_attempt in range(1, 3):
-            failed_chunks = failed_quality_chunk_ids(quality) | failed_asr_chunk_ids(asr_report)
+        for _repair_attempt in range(1, PERFORMANCE_REPAIR_ATTEMPTS + 1):
+            failed_chunks = (
+                failed_quality_chunk_ids(quality)
+                | (failed_asr_chunk_ids(asr_report) if args.asr_mode == "required" else set())
+                | set(performance_report.get("gate_failed_chunk_ids", []))
+            )
             if not failed_chunks:
                 break
-            repaired_scene = generate_scene_audio(run_dir, failed_chunks)
+            repaired_scene = generate_scene_audio(
+                run_dir,
+                failed_chunks,
+                repair_notes=performance_repair_notes(performance_report),
+            )
             full = concat_audio(run_dir, repaired_scene["parts"])
             validation = validate_audio(reference_paths + repaired_scene["parts"] + [full])
             quality = audio_quality_report(run_dir, repaired_scene["parts"], full)
-            asr_report = asr_language_audit(run_dir, repaired_scene["logs"])
+            write_json(run_dir / "logs" / "validation_log.json", validation)
+            write_json(run_dir / "logs" / "audio_quality_report.json", quality)
+            if args.asr_mode == "off":
+                asr_report = {"status": "skipped", "chunks": [], "fail_reasons": [], "policy": {"reason": "ASR disabled by workflow profile."}}
+            else:
+                asr_report = asr_language_audit(run_dir, repaired_scene["logs"])
+            asr_report = asr_gate(asr_report, args.asr_mode)
+            write_json(run_dir / "logs" / "asr_language_report.json", asr_report)
+            if args.performance_mode == "off":
+                performance_report = {
+                    "status": "skipped", "preview_status": "available", "failed_chunk_ids": [],
+                    "unavailable_chunk_ids": [], "chunks": [],
+                }
+            else:
+                performance_report = performance_audio_audit(run_dir, repaired_scene["parts"])
+            performance_report = performance_gate(performance_report, args.performance_mode)
+            write_json(run_dir / "logs" / "performance_review_report.json", performance_report)
             repair_logs.extend(repaired_scene["logs"])
             scene = {
                 "logs": scene["logs"] + repaired_scene["logs"],
@@ -4235,9 +4567,23 @@ def main() -> int:
         write_json(run_dir / "logs" / "validation_log.json", validation)
         write_json(run_dir / "logs" / "audio_quality_report.json", quality)
         write_json(run_dir / "logs" / "asr_language_report.json", asr_report)
-        audio = {"full": str(full.relative_to(ROOT)), "validation": validation, "quality": quality, "asr": asr_report}
-        update_manifest(run_dir, "completed")
-    write_analysis(run_dir, build, validation, quality)
+        write_json(run_dir / "logs" / "performance_review_report.json", performance_report)
+        audio = {
+            "full": str(full.relative_to(ROOT)),
+            "validation": validation,
+            "quality": quality,
+            "asr": asr_report,
+            "performance": performance_report,
+            "preview_status": performance_report.get("preview_status"),
+            "delivery_status": "pass" if (
+                all(item.get("ffmpeg_decode_ok") for item in validation.values())
+                and quality.get("core_status") == "pass"
+                and asr_report.get("gate_status") in {"pass", "skipped"}
+                and performance_report.get("gate_status") in {"pass", "skipped"}
+            ) else "fail",
+        }
+        update_manifest(run_dir, "completed" if audio["delivery_status"] == "pass" else "needs_review")
+    write_analysis(run_dir, build, validation, quality, performance_report)
     print(json.dumps({"run_dir": str(run_dir.relative_to(ROOT)), "build": build, "audio": audio}, ensure_ascii=False, indent=2))
     return 0
 

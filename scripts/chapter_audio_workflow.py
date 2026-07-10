@@ -269,6 +269,7 @@ def section_status(section_dir: Path, *, mode: str, roles: dict) -> dict:
     ]
     quality = read_json(section_dir / "logs" / "audio_quality_report.json")
     asr = read_json(section_dir / "logs" / "asr_language_report.json")
+    performance = read_json(section_dir / "logs" / "performance_review_report.json")
     final_audio = find_final_audio(section_dir)
     if mode == "rewrite":
         quality_status = "planned"
@@ -277,7 +278,15 @@ def section_status(section_dir: Path, *, mode: str, roles: dict) -> dict:
     else:
         quality_status = quality.get("status", "missing")
         asr_status = asr.get("status", "missing")
-        passed = quality.get("status") == "pass" and asr.get("status") == "pass" and bool(final_audio)
+        performance_status = performance.get("delivery_status", "missing")
+        passed = (
+            quality.get("status") == "pass"
+            and asr.get("status") == "pass"
+            and performance_status == "pass"
+            and bool(final_audio)
+        )
+    if mode == "rewrite":
+        performance_status = "planned"
     return {
         "section_id": section_dir.name,
         "rewrite_status": "pass" if rewrite_ok else "missing",
@@ -291,6 +300,10 @@ def section_status(section_dir: Path, *, mode: str, roles: dict) -> dict:
         "quality_fail_reasons": quality.get("fail_reasons", []),
         "asr_status": asr_status,
         "asr_fail_reasons": asr.get("fail_reasons", []),
+        "performance_status": performance_status,
+        "performance_preview_status": performance.get("preview_status", "missing"),
+        "performance_failed_chunk_ids": performance.get("failed_chunk_ids", []),
+        "performance_unavailable_chunk_ids": performance.get("unavailable_chunk_ids", []),
         "pass": passed,
     }
 
@@ -299,7 +312,13 @@ def section_is_reusable(section_dir: Path, *, mode: str, roles: dict) -> tuple[b
     status = section_status(section_dir, mode=mode, roles=roles)
     if mode == "rewrite":
         return bool(status["pass"]), status
-    return bool(status["pass"] and status.get("final_audio") and status.get("quality_status") == "pass" and status.get("asr_status") == "pass"), status
+    return bool(
+        status["pass"]
+        and status.get("final_audio")
+        and status.get("quality_status") == "pass"
+        and status.get("asr_status") == "pass"
+        and status.get("performance_status") == "pass"
+    ), status
 
 
 def archive_section_dir(section_dir: Path, reason: str) -> Path:
@@ -383,6 +402,7 @@ def chapter_acceptance(
         "all_sections_generated": len(section_reports) == len(chapters),
         "all_sections_quality_pass": None if prepare_only else bool(section_reports) and all(item["quality_status"] == "pass" for item in section_reports),
         "all_sections_asr_pass": None if prepare_only else bool(section_reports) and all(item["asr_status"] == "pass" for item in section_reports),
+        "all_sections_performance_pass": None if prepare_only else bool(section_reports) and all(item.get("performance_status") == "pass" for item in section_reports),
         "stitched_only_after_pass": bool(final_audio) if generate else None,
         "fixed_voice_registry": True,
         "stable_case_directory": str(case_dir.relative_to(ROOT)),
@@ -610,6 +630,11 @@ def main() -> int:
             if result.returncode == 0:
                 last_status = section_status(section_dir, mode=section_mode, roles=roles)
                 if last_status["pass"]:
+                    break
+                # The preview is useful evidence even when the external reviewer is
+                # temporarily unavailable. Do not burn provider calls by regenerating
+                # the whole section for that infrastructure condition.
+                if last_status.get("performance_status") == "fail" and last_status.get("performance_unavailable_chunk_ids"):
                     break
             if section_attempt < max_attempts and section_dir.exists():
                 reason = "returncode" if result.returncode != 0 else f"quality_{(last_status or {}).get('quality_status', 'missing')}_asr_{(last_status or {}).get('asr_status', 'missing')}"

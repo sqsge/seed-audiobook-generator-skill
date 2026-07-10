@@ -1,140 +1,139 @@
 ---
 name: seed-audiobook-generator
-description: Use this skill to turn plain fiction text into Seed Audio 1.0-ready audio-drama prompts and generated audiobook/audio-drama assets using Seed 2.0 Pro rewriting, voice registry binding, reference audio, chunk generation, stitching, and QA reports.
+description: Use this skill to turn long fiction into a resumable multi-character Seed Audio drama. It plans sections and dramatic chunks, keeps a chapter-wide voice registry, performs Seed 2.0 Pro sound-director rewriting, generates and stitches Seed Audio, preserves every intermediate artifact and revision, and resumes after interruption without regenerating accepted sections.
 ---
 
-# Seed Audiobook Generator
+# Resumable Seed Audio Drama
 
-Use this skill when the user wants to convert a novel or scripted scene into a multi-character audiobook or audio-drama demo with Seed 2.0 Pro and Seed Audio 1.0.
+Use this skill for a complete fiction chapter or long scene that should become an English multi-character audio drama. The workflow is stateful: inspect or resume an existing run before starting a new one.
 
-## What This Skill Does
+## Operating Rules
 
-- Accepts plain source text or a story configuration.
-- Plans long source files into semantic chapters and ordered batches.
-- Parses the source into traceable story units.
-- Builds a voice registry for narrator and characters.
-- Rewrites the source into Seed Audio 1.0 sound-director prompts.
-- Binds active roles to `<<TGT_SPK1>>`, `<<TGT_SPK2>>`, and `<<TGT_SPK3>>` per chunk.
-- Generates reference voices and scene audio when credentials are available.
-- Stitches generated chunks and writes QA artifacts.
+- Treat the source text as the only required content input.
+- Create one immutable `run-id` for one source and production profile.
+- Check `status` before `run` when a run may already exist.
+- Never restart or duplicate a run merely because a provider call or review was interrupted.
+- Reuse the chapter-wide voice registry for every section and chunk.
+- Keep each Seed Audio request within the three-active-reference limit.
+- Preserve source, section plans, voice registry, director prompts, requests, audio parts, revisions, reports, and event history.
+- ASR is optional evidence. It is off by default and must not be used as the normal delivery gate.
+- Use balanced performance review by default. Regenerate only chunks with major audible delivery defects.
+- Never reveal or package `.env`, API keys, generated runs, or signed provider URLs.
 
-## Safety Rules
+## Primary Workflow
 
-- Never reveal `.env` contents or API keys.
-- Do not commit generated media, run folders, logs, or local credentials.
-- Keep user-provided source text separate from generated outputs.
-- Use the smallest representative demo when validating expensive model calls.
-- For copyrighted source material, use original demo text, public-domain text, or user-cleared text.
+1. Clean the source and split it into semantic sections at paragraph and scene boundaries.
+2. Infer or load one stable chapter-level role-to-voice registry.
+3. Within each section, split by dramatic action and the maximum three active voices per request.
+4. Use Seed 2.0 Pro to create chronological sound-director prompts containing narration, dialogue, ambience, music, and source-derived SFX.
+5. Generate each chunk with Seed Audio, retaining successful existing chunks on resume.
+6. Apply core media validation and balanced performance review.
+7. Archive the previous audio and QA checkpoint before regenerating only a failed chunk.
+8. Stitch accepted chunks into sections, then accepted sections into the full chapter.
 
-## Setup
+Read [references/run-state.md](references/run-state.md) for state semantics and [references/quality-profiles.md](references/quality-profiles.md) before changing gates.
 
-1. Work from the skill root.
-2. Copy `references/env.example` to `.env` and fill only the variables required for the current run.
-3. Check `references/env-vars.md` before asking the user for credentials.
+## Commands
 
-Required for rewrite:
-
-- `LLM_API_KEY` or `ARK_API_KEY`
-- `LLM_BASE_URL`
-- `LLM_MODEL`
-
-Required for audio generation:
-
-- `SEED_AUDIO_API_KEY`
-- `SEED_AUDIO_URL`
-- `SEED_AUDIO_MODEL`
-
-Optional for generated reference audio:
-
-- `TTS_API_KEY`
-- `TTS_SPEAKER`
-- role-specific `SEED_AUDIO_SPEAKER_*` values when using fixed voices
-
-## Main Commands
-
-Dry-run rewrite and input review using the bundled demo:
+Start or continue a run. If the `run-id` exists, this command loads its existing state:
 
 ```bash
-python3 scripts/audiobook_workflow.py
+python3 scripts/resumable_audio_drama.py run \
+  --source-file path/to/chapter.txt \
+  --source-title "Chapter title" \
+  --run-id chapter_run_001
 ```
 
-Plan a long source file into chapters and batches without calling models:
+Inspect progress without calling any provider:
 
 ```bash
-python3 scripts/long_text_batch_planner.py --source-file path/to/novel.txt
+python3 scripts/resumable_audio_drama.py status --run-id chapter_run_001
 ```
 
-Run the bundled magic-duel demo and generate audio:
+Continue after interruption or a repaired configuration:
 
 ```bash
-python3 scripts/audiobook_workflow.py --story-config story_configs/moonlit_cloister_duel_en.json --generate
+python3 scripts/resumable_audio_drama.py resume --run-id chapter_run_001
 ```
 
-Run a new source text file:
+Prepare all director artifacts without generating Seed Audio:
 
 ```bash
-python3 scripts/audiobook_workflow.py --source-file path/to/source.txt --language en --source-title "Demo Scene"
+python3 scripts/resumable_audio_drama.py run \
+  --source-file path/to/chapter.txt \
+  --run-id chapter_prepare_001 \
+  --prepare-only
 ```
 
-Resume audio generation from an existing run:
+Use an approved fixed voice registry instead of inferring one:
 
 ```bash
-python3 scripts/audiobook_workflow.py --resume-run-id RUN_ID --generate
+python3 scripts/resumable_audio_drama.py run \
+  --source-file path/to/chapter.txt \
+  --voice-registry path/to/voice_registry.json \
+  --run-id chapter_fixed_voices_001
 ```
 
-## Expected Outputs
+Run ASR only when transcript evidence is explicitly needed:
 
-The workflow writes outputs under `outputs/runs/<run_id>/`:
+```bash
+python3 scripts/resumable_audio_drama.py run \
+  --source-file path/to/chapter.txt \
+  --run-id chapter_asr_diagnostic_001 \
+  --asr-mode diagnostic
+```
 
-- source excerpt
-- source units
-- scene parse
-- voice registry
-- director prompt chunks
-- generation requests
-- audio chunks
-- stitched final audio
-- input review and QA reports
+## Resume Decisions
 
-Generated outputs are intentionally ignored by git.
+- `accepted`: skip it.
+- `prepared`: reuse its rewrite artifacts and begin generation.
+- `running` or `interrupted`: reuse its manifest and completed audio chunks.
+- `needs_review`: preserve the previous QA checkpoint, then retry only gated chunks.
+- `failed`: keep the error and intermediate files; resume after the concrete cause is fixed.
 
-For long source files, the planner writes outputs under `outputs/long_runs/<run_id>/`:
+The default permits at most two section-level review cycles. When that limit is reached, the state changes to `human_review_required` without another provider call.
 
-- `source_clean.txt`
-- `preprocessing_report.json`
-- `chapter_plan.json`
-- `batch_plan.json`
-- `manifest.json`
-- `chapters/chapter_XXXX.txt`
+After listening to the retained audio and reports, explicitly authorize one more paid cycle only when justified:
 
-Each planned chapter can then be passed to `scripts/audiobook_workflow.py --source-file ...` so the existing rewrite, voice binding, generation, stitching, and QA mechanism stays unchanged.
+```bash
+python3 scripts/resumable_audio_drama.py resume \
+  --run-id chapter_run_001 \
+  --allow-extra-review-cycle
+```
 
-## Voice Binding Rule
+Do not infer completion from the presence of WAV files alone. `run_state.json` is the chapter-level source of truth; each section manifest and QA report is the lower-level evidence.
 
-Do not treat `<<TGT_SPK1>>`, `<<TGT_SPK2>>`, and `<<TGT_SPK3>>` as global character IDs. They are per-request reference-audio slots.
+## Default Acceptance
 
-For each chunk:
+A section is accepted when:
 
-1. Select only the roles active in that chunk.
-2. Pass their reference audio in a stable order.
-3. Bind dialogue lines to the numeric slot for that chunk.
-4. Keep the global role registry stable across chunks.
+- the final audio exists and decodes;
+- no output chunk is missing or effectively empty;
+- balanced review finds no major rushed delivery, clipped ending, hard cut, voice masking, mechanical narration, or overlapping voices;
+- ASR passes only when `--asr-mode required` was explicitly selected.
 
-## Reporting
+Minor stylistic observations stay in reports and do not trigger regeneration. Reviewer unavailability does not delete generated audio; in balanced mode it remains reviewable instead of causing an automatic retry loop.
 
-After a run, report:
+## Outputs
 
-- source title
-- run id
-- chunk count
-- whether generation was dry-run or real audio
-- final audio path when generated
-- input review status
-- any failed chunks and likely cause
+Runs are stored under `outputs/skill_runs/<run-id>/`:
 
-For long-form planning, also report:
+- `run_state.json`: resumable chapter state
+- `events.jsonl`: append-only progress history
+- `source.txt`, `preprocessing_report.json`, `voice_registry.json`
+- `inputs/section_*/`: immutable section source and story config
+- `sections/section_*/`: source units, director prompts, generation requests, audio chunks, stitched section, and QA reports
+- `history/`: interrupted rewrites and pre-retry QA checkpoints
+- `sections/section_*/07_audio_revisions/`: replaced audio generations
+- `stitched/<run-id>_full.wav`: completed chapter audio
 
-- chapter count
-- batch count
-- preprocessing warnings
-- whether chapter coverage is complete
+## Verification
+
+Before packaging or publishing this skill, run:
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/seed-audio-pyc python3 -m py_compile scripts/*.py
+PYTHONPYCACHEPREFIX=/tmp/seed-audio-pyc python3 -m unittest discover -s tests -v
+```
+
+Report the run id, current state, accepted section count, section needing attention, final audio path if complete, and the exact gate responsible for any stop.

@@ -33,6 +33,7 @@ TARGET_SPEECH_RATE = 24
 ENGLISH_TARGET_SPEECH_RATE = int(os.getenv("SEED_AUDIO_EN_SPEECH_RATE", "0"))
 PERFORMANCE_REVIEW_MODEL = os.getenv("SEED_AUDIO_PERFORMANCE_REVIEW_MODEL", "seed-2-0-lite-260428")
 PERFORMANCE_REVIEW_TIMEOUT = int(os.getenv("SEED_AUDIO_PERFORMANCE_REVIEW_TIMEOUT", "75"))
+REWRITE_MAX_TOKENS = int(os.getenv("SEED_AUDIO_REWRITE_MAX_TOKENS", "6000"))
 POSTPROCESS_TIMING = common.get_env_bool("SEED_AUDIO_POSTPROCESS_TIMING", False)
 HK_TZ = timezone(timedelta(hours=8))
 
@@ -800,10 +801,10 @@ JSON schema:
 
 def compact_rewrite_prompt(source_units: list[dict]) -> str:
     allowed_speakers = "|".join(ROLE_SPECS.keys())
+    speaker_candidates = ENGLISH_SPEAKER_CANDIDATES if is_english_prompt() else CHINESE_SPEAKER_CANDIDATES
+    language_name = "English" if is_english_prompt() else "Chinese"
+    role_lock_instruction = ""
     if is_auto_planning():
-        speaker_candidates = ENGLISH_SPEAKER_CANDIDATES if is_english_prompt() else CHINESE_SPEAKER_CANDIDATES
-        language_name = "English" if is_english_prompt() else "Chinese"
-        role_lock_instruction = ""
         if STORY_CONFIG and STORY_CONFIG.get("lock_roles") and STORY_CONFIG.get("roles"):
             role_lock_instruction = (
                 "\nRole registry lock:\n"
@@ -812,7 +813,7 @@ def compact_rewrite_prompt(source_units: list[dict]) -> str:
                 "If a minor offstage voice is not in the registry, represent it through Narrator, ambience, or non-quoted background sound.\n"
                 f"supplied_role_registry:\n{json.dumps(STORY_CONFIG.get('roles'), ensure_ascii=False, indent=2)}\n"
             )
-        return f"""You are a senior audiobook and audio-drama planner for Seed Audio 1.0.
+    return f"""You are a senior audiobook and audio-drama planner for Seed Audio 1.0.
 
 Convert plain {language_name} fiction source_units into a complete production plan. The user only supplied source text, so you must infer roles, speakers, scene beats, chunk boundaries, music, ambience, and action SFX.
 {role_lock_instruction}
@@ -990,6 +991,40 @@ Output schema:
   }},
   "scene_notes": "sound-space and story summary"
 }}
+"""
+
+
+def longform_section_planning_prompt(source_units: list[dict]) -> str:
+    """A bounded planning contract for chapter sections.
+
+    The final Seed Audio prompt is built from this structured plan by the
+    existing official-style composer. Asking the model to also emit that long
+    prompt, metrics, reviews, and duplicate schemas made a 2.7k-character
+    source section expand into a 24k-character rewrite request.
+    """
+    allowed_roles = list(ROLE_SPECS)
+    compact_units = [
+        {
+            "source_unit_id": unit["source_unit_id"],
+            "source_kind": unit["source_kind"],
+            "source_text": unit["source_text"],
+            **({"quote_attribution_text": unit["quote_attribution_text"]} if unit.get("quote_attribution_text") else {}),
+        }
+        for unit in source_units
+    ]
+    return f"""Plan this English fiction section for a Seed Audio 1.0 audio drama. Return one compact JSON object only.
+
+Use only these fixed speaker ids: {json.dumps(allowed_roles)}. Preserve every source_unit_id exactly once and in original order. Keep story meaning and quoted dialogue intent. Urgency must come from acting, music, and action sound, never rushed speech. Keep speech clear, sequential, and end every chunk after a complete thought.
+
+For every parsed source unit provide only: source_unit_id, type (narration|dialogue|monologue), speaker, speaker_evidence, emotion, narration_style, delivery, sfx_before, sfx_during, sfx_after, sfx_layer, sfx_importance, sfx_reason, music_intent. The workflow preserves each original source_text verbatim unless a later audio-adaptation step explicitly changes it.
+
+Create 1-3 coherent chunk_plan entries. Each entry needs: title, source_unit_ids, active_roles (1-3 from the fixed list), persistent_ambience, music_bed, sound_design, speech_rate (-4 to 8), pace_note, continuity, expected_duration_sec, source_beats, must_keep_dialogue, optional_dialogue, narration_bridge, sfx_story_events, omission_rationale. Do not include a final_audio_prompt; the workflow composes the provider-safe timeline from your plan.
+
+JSON shape:
+{{"parsed_source_units":[{{"source_unit_id":"s0001","type":"narration","speaker":"Narrator","speaker_evidence":"context","emotion":"...","narration_style":"action_narration","delivery":"...","sfx_before":[],"sfx_during":[],"sfx_after":[],"sfx_layer":"foreground","sfx_importance":"high","sfx_reason":"...","music_intent":"..."}}],"chunk_plan":[{{"title":"...","source_unit_ids":["s0001"],"active_roles":["Narrator"],"persistent_ambience":"...","music_bed":"...","sound_design":"...","speech_rate":0,"pace_note":"...","continuity":{{"previous_context_summary":"...","chunk_opening_state":"...","chunk_ending_state":"...","next_context_hint":"..."}},"expected_duration_sec":{{"min":20,"max":90}},"source_beats":["..."],"must_keep_dialogue":[],"narration_bridge":["..."],"sfx_story_events":["..."],"omission_rationale":["..."]}}]}}
+
+source_units:
+{json.dumps(compact_units, ensure_ascii=False, separators=(",", ":"))}
 """
     if is_english_prompt():
         return f"""You are an audio drama text parser. Convert the plain English fiction source_units into a compact JSON plan that can later be rendered into Seed Audio 1.0 director prompts.
@@ -3019,7 +3054,8 @@ def normalize_rewrite(data: dict, source_units: list[dict]) -> dict:
 
 
 def call_seed2_rewrite(run_dir: Path, source_units: list[dict]) -> dict:
-    prompt = compact_rewrite_prompt(source_units)
+    use_longform_section_plan = bool(is_auto_planning() and is_english_prompt() and STORY_CONFIG and STORY_CONFIG.get("lock_roles"))
+    prompt = longform_section_planning_prompt(source_units) if use_longform_section_plan else compact_rewrite_prompt(source_units)
     write_text(run_dir / "logs" / "seed2_rewrite_prompt.txt", prompt)
     last_error = ""
     retryable_validation_patterns = [
@@ -3048,7 +3084,9 @@ def call_seed2_rewrite(run_dir: Path, source_units: list[dict]) -> dict:
                 system="You are a precise JSON-only audiobook workflow generator. Return one complete valid JSON object. Do not truncate.",
                 model=REWRITE_MODEL,
                 temperature=0.1,
-                max_tokens=30000 if is_auto_planning() else 12000,
+                # A section-level plan has a bounded schema. Letting the model
+                # reserve 30k tokens makes ordinary chapter sections stall.
+                max_tokens=REWRITE_MAX_TOKENS if is_auto_planning() else 12000,
             )
             write_text(run_dir / "logs" / f"seed2_rewrite_response_attempt_{attempt}.txt", text)
             write_text(run_dir / "logs" / "seed2_rewrite_response.txt", text)

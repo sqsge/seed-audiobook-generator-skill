@@ -62,6 +62,20 @@ class PerformanceQaRegressionTests(unittest.TestCase):
         }
         self.assertEqual(audiobook_workflow.failed_performance_chunk_ids(report), {"chunk_002"})
 
+    def test_section_rewrite_output_has_a_bounded_default(self):
+        self.assertEqual(audiobook_workflow.REWRITE_MAX_TOKENS, 6000)
+
+    def test_longform_planning_contract_is_smaller_than_full_rewrite_contract(self):
+        units = [
+            {"source_unit_id": "s0001", "source_kind": "narrative_text", "source_text": "Wind crossed the empty yard."},
+            {"source_unit_id": "s0002", "source_kind": "quoted_text", "source_text": "Run.", "quote_attribution_text": "Harry said"},
+        ]
+        compact = audiobook_workflow.compact_rewrite_prompt(units)
+        longform = audiobook_workflow.longform_section_planning_prompt(units)
+        self.assertLess(len(longform), len(compact))
+        self.assertIn('"source_unit_id":"s0001"', longform)
+        self.assertIn("Do not include a final_audio_prompt", longform)
+
 
 if __name__ == "__main__":
     unittest.main()

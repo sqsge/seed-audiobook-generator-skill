@@ -629,6 +629,11 @@ def main() -> int:
                 last_status = section_status(section_dir, mode=section_mode, roles=roles)
                 if last_status["pass"]:
                     break
+                # A reviewer outage cannot be repaired by regenerating the
+                # same audio. Preserve this section and stop so the report is
+                # actionable instead of multiplying provider calls.
+                if last_status.get("performance_status") == "unavailable":
+                    break
             if section_attempt < max_attempts and section_dir.exists():
                 reason = "returncode" if result.returncode != 0 else (
                     f"quality_{(last_status or {}).get('quality_status', 'missing')}_"

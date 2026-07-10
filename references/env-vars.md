@@ -18,6 +18,7 @@ Use this file for setup and credential triage. Never print real values from `.en
 - `SEED_AUDIO_MODEL`: model id, usually `seed-audio-1.0`.
 - `SEED_AUDIO_PERFORMANCE_REVIEW_MODEL`: audio-capable reviewer model, default `seed-2-0-lite-260428`.
 - `SEED_AUDIO_PERFORMANCE_REVIEW_TIMEOUT`: reviewer request timeout in seconds, default `75`.
+- `SEED_AUDIO_REWRITE_MAX_TOKENS`: maximum structured rewrite output for one source section, default `6000`.
 - `SEED_AUDIO_POSTPROCESS_TIMING`: defaults to `false`; enable only when manually recovering excessive silence, since automatic silence removal can cut quiet line endings.
 - `SEED_AUDIO_FORMAT`: output format such as `wav` or `mp3`.
 - `SEED_AUDIO_SAMPLE_RATE`: output sample rate.

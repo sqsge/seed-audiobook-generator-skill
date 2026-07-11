@@ -8,6 +8,8 @@ Always enabled. It blocks only unusable output such as missing, undecodable, or 
 
 The separate pre-generation input gate runs before this stage. It can block provider calls for incomplete narration, missing source coverage, voice conflicts, or prompt-budget violations.
 
+Speaker attribution is evidence-gated separately from performance QA. Named dialogue requires high confidence plus deterministic support in the source attribution or adjacent source units. This prevents a planner from promoting a weak guess from `medium` to `high` merely to satisfy validation.
+
 ## Performance Review
 
 - `balanced` (default): blocks only major rushed pacing, clipped endings, hard cuts, masked voices, mechanical narration, or overlapping voices. Minor observations are retained without retry.

@@ -13,7 +13,7 @@ Planning is complete only when every source unit appears exactly once and in ord
 
 ## Admission Layer
 
-The static gate runs before scene generation. It verifies complete spoken sentences, narrator coverage, must-keep dialogue, supported speaker attribution, unique active voices, three-reference capacity, required sound layers, language lock, and a 2700-character base prompt budget. Named-character dialogue with low attribution confidence is rejected. A failed admission report forbids provider calls.
+The static gate runs before scene generation. It verifies complete spoken sentences, narrator coverage, must-keep dialogue, supported speaker attribution, unique active voices, three-reference capacity, required sound layers, language lock, and a 2700-character base prompt budget. A named-character line must be high confidence and independently supported by the quote attribution or an immediately adjacent source unit using the role's aliases. Model-reported confidence alone is never sufficient. A failed admission report forbids provider calls.
 
 ## Casting Layer
 
@@ -30,6 +30,8 @@ After approval, generate one chunk at a time. Each chunk stores its own request,
 ## Failure Routing
 
 - Provider transport failure: retain state and resume the same stage.
+- Seed 2 Pro planning runs in an isolated child process with a parent-enforced timeout and configurable finite attempt count. A timeout never launches an automatic duplicate request.
+- Casting samples also use a parent-enforced per-role timeout; completed role samples are checkpointed and reused on resume.
 - Static input failure: `needs_replan`, with no Audio call.
 - Prompt generation follows the official natural chronological style. Music is described with style, instruments, rhythm and atmosphere; characters are described naturally on first appearance; sound effects are inserted where the story motivates them.
 - The static gate does not prescribe sound-effect counts or canned timeline phrases. Audible sound quality is evaluated through representative pilots and human listening.

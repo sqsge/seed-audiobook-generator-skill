@@ -218,6 +218,7 @@ def prepare_casting_samples(run_dir: Path, state: dict) -> bool:
     prompt_dir = run_dir / "planning" / "casting_prompts"
     sample_dir.mkdir(parents=True, exist_ok=True)
     prompt_dir.mkdir(parents=True, exist_ok=True)
+    casting_timeout = max(10, int(os.getenv("SEED_CASTING_TIMEOUT", "120")))
     for role, spec in roles.items():
         key = str(spec.get("key") or re.sub(r"[^a-z0-9]+", "_", role.lower()).strip("_"))
         output = sample_dir / f"{key}.wav"
@@ -230,8 +231,7 @@ def prepare_casting_samples(run_dir: Path, state: dict) -> bool:
         prior_sample = casting.get("samples", {}).get(role, {})
         prior_speaker = prior_sample.get("speaker") if isinstance(prior_sample, dict) else None
         if not output.exists() or prior_speaker != spec.get("default_speaker"):
-            result = run_subprocess(
-                [
+            command = [
                     sys.executable,
                     str(SEED_AUDIO_CLIENT),
                     "--text-file",
@@ -246,9 +246,25 @@ def prepare_casting_samples(run_dir: Path, state: dict) -> bool:
                     "24000",
                     "--speech-rate",
                     "2",
-                ],
-                ROOT,
-            )
+                    "--timeout",
+                    str(casting_timeout),
+                ]
+            try:
+                result = subprocess.run(
+                    command,
+                    cwd=ROOT,
+                    text=True,
+                    capture_output=True,
+                    timeout=casting_timeout,
+                )
+            except subprocess.TimeoutExpired:
+                casting["last_error"] = f"casting_sample_timeout:{role}:{casting_timeout}s"
+                casting["failed_role"] = role
+                state["status"] = "blocked"
+                state["current_stage"] = "casting_samples"
+                state["current_item"] = role
+                save_state(run_dir, state)
+                return False
             if result.returncode != 0:
                 casting["last_error"] = result.stderr[-2000:] or f"casting_sample_failed:{role}"
                 state["status"] = "blocked"
@@ -258,6 +274,11 @@ def prepare_casting_samples(run_dir: Path, state: dict) -> bool:
             "audio": str(output.relative_to(run_dir)),
             "speaker": spec.get("default_speaker"),
         }
+        casting.pop("last_error", None)
+        casting.pop("failed_role", None)
+        state["current_stage"] = "casting_samples"
+        state["current_item"] = role
+        save_state(run_dir, state)
     casting["registry_sha256"] = casting_registry_sha256(run_dir)
     state["status"] = "awaiting_casting_approval"
     state["current_stage"] = "awaiting_casting_approval"
@@ -824,7 +845,10 @@ def main() -> int:
     if state.get("schema_version") != 2:
         raise SystemExit("This run uses the retired workflow schema; start a new final-workflow run id.")
     if state.get("casting", {}).get("required") and not casting_is_approved(run_dir, state):
-        raise SystemExit("Dry voice casting samples require human approval before section planning and provider batch generation.")
+        with run_lease(run_dir, state):
+            prepare_casting_samples(run_dir, state)
+        print_status(run_dir, state)
+        return 0 if state.get("status") == "awaiting_casting_approval" else 3
     with run_lease(run_dir, state):
         if any(section.get("status") == "needs_replan" for section in state["sections"]):
             retry_cached_static_gate_once(run_dir, state)

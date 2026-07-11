@@ -38,10 +38,34 @@ def quote_is_complete(quote: str) -> bool:
     return bool(words) and words[-1] not in dangling and bool(re.search(r"[.!?]\s*$", quote))
 
 
+def named_speaker_has_source_evidence(parsed_units: list[dict], index: int, role_specs: dict) -> bool:
+    unit = parsed_units[index]
+    role = str(unit.get("speaker") or "")
+    if unit.get("source_kind") != "quoted_text" or role == "Narrator":
+        return True
+    spec = role_specs.get(role, {})
+    keywords = [role, str(spec.get("label") or ""), *(spec.get("attribution_keywords", []) or [])]
+    keywords.extend(part for part in role.split() if len(part) >= 3)
+    patterns = [re.compile(rf"\b{re.escape(str(keyword))}\b", re.I) for keyword in keywords if str(keyword).strip()]
+    evidence_texts = [str(unit.get("quote_attribution_text") or "")]
+    for neighbor_index in (index - 1, index + 1):
+        if 0 <= neighbor_index < len(parsed_units):
+            evidence_texts.append(str(parsed_units[neighbor_index].get("source_text") or ""))
+    if any(pattern.search(text) for pattern in patterns for text in evidence_texts):
+        return True
+    if index > 0:
+        previous = parsed_units[index - 1]
+        if previous.get("source_kind") == "quoted_text" and previous.get("speaker") == role:
+            return named_speaker_has_source_evidence(parsed_units, index - 1, role_specs)
+    return False
+
+
 def evaluate(section_dir: Path) -> dict:
     source_units = read_json(section_dir / "02_source_units.json")
     scene_parse_path = section_dir / "03_scene_parse.json"
     scene_parse = read_json(scene_parse_path) if scene_parse_path.exists() else {"parsed_source_units": []}
+    workflow_config_path = section_dir / "00_workflow_config.json"
+    workflow_config = read_json(workflow_config_path) if workflow_config_path.exists() else {"roles": {}}
     registry = read_json(section_dir / "04_voice_registry.json")
     roles = {item["role"]: item for item in registry.get("voices", [])}
     requests = [read_json(path) for path in sorted((section_dir / "06_generation_requests").glob("chunk_*.json"))]
@@ -50,12 +74,16 @@ def evaluate(section_dir: Path) -> dict:
     section_failures: list[str] = []
     if actual_ids != expected_ids:
         section_failures.append("source_unit_coverage_or_order_mismatch")
+    parsed_units = scene_parse.get("parsed_source_units", [])
     unsupported_attributions = [
         unit.get("source_unit_id")
-        for unit in scene_parse.get("parsed_source_units", [])
+        for index, unit in enumerate(parsed_units)
         if unit.get("source_kind") == "quoted_text"
         and unit.get("speaker") != "Narrator"
-        and unit.get("speaker_confidence") not in {"high", "medium"}
+        and (
+            unit.get("speaker_confidence") != "high"
+            or not named_speaker_has_source_evidence(parsed_units, index, workflow_config.get("roles", {}))
+        )
     ]
     if unsupported_attributions:
         section_failures.append("unsupported_specific_speaker_attribution")

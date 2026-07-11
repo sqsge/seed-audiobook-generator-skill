@@ -54,6 +54,23 @@ class FinalWorkflowTests(unittest.TestCase):
         self.assertEqual(unit["speaker_confidence"], "high")
         self.assertEqual(unit["speaker_evidence"], "yelled Harry")
 
+    def test_named_speaker_requires_adjacent_source_evidence(self):
+        units = [
+            {"source_kind": "narrative_text", "source_text": "Harry raised his wand."},
+            {"source_kind": "quoted_text", "source_text": "Petrificus Totalus!", "speaker": "Harry Potter"},
+            {"source_kind": "narrative_text", "source_text": "The spell struck the attacker."},
+            {"source_kind": "narrative_text", "source_text": "Harry fell beneath the werewolf."},
+            {"source_kind": "quoted_text", "source_text": "Petrificus Totalus!", "speaker": "Ginny Weasley"},
+            {"source_kind": "narrative_text", "source_text": "Harry pushed the werewolf away."},
+        ]
+        role_specs = {
+            "Harry Potter": {"label": "Harry Potter", "attribution_keywords": ["Harry"]},
+            "Ginny Weasley": {"label": "Ginny Weasley", "attribution_keywords": ["Ginny"]},
+        }
+        with patch.object(audiobook_workflow, "ROLE_SPECS", role_specs):
+            self.assertTrue(audiobook_workflow.named_speaker_has_source_evidence(units, 1))
+            self.assertFalse(audiobook_workflow.named_speaker_has_source_evidence(units, 4))
+
     def test_casting_samples_gate_batch_until_human_approval(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as temp_dir:
             run_dir = Path(temp_dir)
@@ -73,13 +90,13 @@ class FinalWorkflowTests(unittest.TestCase):
             )
             state = {"casting": {"required": True, "approved": False, "samples": {}}}
 
-            def fake_run(command, _cwd):
+            def fake_run(command, cwd=None, text=None, capture_output=None, timeout=None):
                 output = Path(command[command.index("--out") + 1])
                 output.parent.mkdir(parents=True, exist_ok=True)
                 output.write_bytes(b"RIFFdry-voice-sample")
                 return type("Completed", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
-            with patch.object(audio_drama_skill, "run_subprocess", side_effect=fake_run):
+            with patch.object(audio_drama_skill.subprocess, "run", side_effect=fake_run):
                 with patch.object(audio_drama_skill, "save_state"):
                     with patch.object(audio_drama_skill, "append_event"):
                         prepared = audio_drama_skill.prepare_casting_samples(run_dir, state)
@@ -99,6 +116,34 @@ class FinalWorkflowTests(unittest.TestCase):
             self.assertTrue(audio_drama_skill.casting_is_approved(run_dir, state))
             registry.write_text('{"roles":{"Narrator":{"default_speaker":"voice-b"}}}', encoding="utf-8")
             self.assertFalse(audio_drama_skill.casting_is_approved(run_dir, state))
+
+    def test_casting_timeout_is_bounded_and_resumable(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as temp_dir:
+            run_dir = Path(temp_dir)
+            (run_dir / "voice_registry.json").write_text(
+                json.dumps(
+                    {
+                        "roles": {
+                            "Narrator": {
+                                "key": "narrator",
+                                "default_speaker": "en_male_knightley_uranus_bigtts",
+                                "reference_prompt": "The tower stood silent.",
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            state = {"casting": {"required": True, "approved": False, "samples": {}}}
+            timeout = audio_drama_skill.subprocess.TimeoutExpired(cmd="seed_audio", timeout=10)
+            with patch.dict("os.environ", {"SEED_CASTING_TIMEOUT": "10"}):
+                with patch.object(audio_drama_skill.subprocess, "run", side_effect=timeout):
+                    with patch.object(audio_drama_skill, "save_state"):
+                        prepared = audio_drama_skill.prepare_casting_samples(run_dir, state)
+        self.assertFalse(prepared)
+        self.assertEqual(state["status"], "blocked")
+        self.assertEqual(state["casting"]["failed_role"], "Narrator")
+        self.assertEqual(state["casting"]["last_error"], "casting_sample_timeout:Narrator:10s")
 
     def make_gate_fixture(self, root: Path, narrator_line: str) -> Path:
         (root / "06_generation_requests").mkdir(parents=True)
@@ -180,7 +225,7 @@ class FinalWorkflowTests(unittest.TestCase):
                                 "source_unit_id": "s0001",
                                 "source_kind": "quoted_text",
                                 "speaker": "Ginny Weasley",
-                                "speaker_confidence": "low",
+                                "speaker_confidence": "medium",
                             }
                         ]
                     }

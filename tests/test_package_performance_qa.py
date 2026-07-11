@@ -26,6 +26,14 @@ class PackagePerformanceQaTests(unittest.TestCase):
         self.assertEqual(audio_block["input_audio"]["format"], "wav")
         self.assertTrue(audio_block["input_audio"]["data"])
 
+    def test_chat_text_forwards_explicit_socket_timeout(self):
+        with patch.object(llm_chat, "_resolve_base_url", return_value="https://example.test"):
+            with patch.object(llm_chat, "_resolve_api_key", return_value="secret"):
+                with patch.object(llm_chat, "_resolve_model", return_value="model"):
+                    with patch.object(llm_chat, "_chat_completion", return_value={"choices": []}) as completion:
+                        llm_chat.chat_text("hello", timeout=17)
+        self.assertEqual(completion.call_args.kwargs["timeout"], 17)
+
     def test_performance_failure_yields_chunk_repair_note(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as temp_dir:
             run_dir = Path(temp_dir)
@@ -174,6 +182,20 @@ class PackagePerformanceQaTests(unittest.TestCase):
             chat.assert_not_called()
             checkpoint = json.loads((run_dir / "logs/seed2_rewrite_checkpoint.json").read_text(encoding="utf-8"))
             self.assertEqual(checkpoint["status"], "reused")
+
+    def test_seed_rewrite_attempt_limit_is_configurable(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as temp_dir:
+            run_dir = Path(temp_dir)
+            (run_dir / "logs").mkdir()
+            with patch.dict("os.environ", {"SEED_REWRITE_ATTEMPTS": "2", "SEED_REWRITE_TIMEOUT": "10"}):
+                with patch.object(audiobook_workflow, "compact_rewrite_prompt", return_value="compact"):
+                    failed = type("Completed", (), {"returncode": 1, "stdout": "", "stderr": "IncompleteRead"})()
+                    with patch.object(audiobook_workflow.subprocess, "run", return_value=failed) as run:
+                        with patch.object(audiobook_workflow.time, "sleep"):
+                            with self.assertRaisesRegex(RuntimeError, "IncompleteRead"):
+                                audiobook_workflow.call_seed2_rewrite(run_dir, [])
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(run.call_args.kwargs["timeout"], 10)
 
     def test_dangling_narration_bridge_is_completed_from_source(self):
         bridge = audiobook_workflow.complete_spoken_bridge(

@@ -14,6 +14,7 @@ Use this skill for a complete fiction chapter or long scene that should become a
 - Keep one chapter-level role-to-voice registry across every section and chunk.
 - Generate clean dry casting samples for every registered role and require explicit human casting approval before section planning or batch generation.
 - Require attribution evidence and confidence for every quoted source unit. Never bind low-confidence unattributed dialogue to a named character.
+- Verify named dialogue against source attribution or immediately adjacent source units; never trust model-reported confidence by itself.
 - Bind no more than three active voices in one Audio request, with no duplicate provider speaker id in that request.
 - Validate source coverage, complete spoken sentences, voice bindings, sound layers, and prompt budget before any Audio provider call.
 - Follow the official Audio 1.0 prompt formula: music opening, natural first-appearance character description, quoted line, naturally timed sound effect, then the next story event.
@@ -115,6 +116,8 @@ Continue batch generation after approval or process interruption:
 ```bash
 python3 scripts/audio_drama_skill.py resume --run-id chapter_run_001
 ```
+
+Provider time budgets are finite and configurable. `SEED_REWRITE_TIMEOUT` controls each isolated Seed 2 Pro planning attempt, `SEED_REWRITE_ATTEMPTS` controls its maximum attempt count, and `SEED_CASTING_TIMEOUT` controls each isolated role sample. Completed artifacts remain resumable after timeout.
 
 Pilot failures automatically archive and replan their complete section once using the QA evidence. If that replanned pilot still fails, use the explicit command after reviewing the retained artifacts:
 

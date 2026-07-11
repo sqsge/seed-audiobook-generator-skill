@@ -20,6 +20,7 @@ import asr_client
 
 ROOT = Path(__file__).resolve().parents[1]
 SEED_AUDIO_CLIENT = Path(__file__).resolve().parent / "seed_audio_client.py"
+LLM_CHAT_CLIENT = Path(__file__).resolve().parent / "llm_chat.py"
 OUTPUT_ROOT = ROOT / "outputs" / "runs"
 STORY_CONFIG: dict | None = None
 SCENE_ID = "moonlit_cloister_duel_en"
@@ -817,7 +818,7 @@ def compact_dynamic_rewrite_prompt(source_units: list[dict], speaker_candidates:
 Rules:
 1. Preserve every input id exactly once and in order in parsed_source_units and chunk_plan.
 2. Discover Narrator and the speaking roles. Give each role a short stable voice identity and choose default_speaker only from {json.dumps(speaker_candidates, ensure_ascii=False)}.
-3. For every unit infer speaker, type, brief emotion and delivery, motivated before/during/after SFX, SFX layer, and brief music intent. Every dialogue unit must include speaker_evidence and speaker_confidence (high|medium|low). Low-confidence unattributed dialogue must use Narrator, never a guessed named role. Omit adapted_text when the source wording is preserved.
+3. For every unit infer speaker, type, brief emotion and delivery, motivated before/during/after SFX, SFX layer, and brief music intent. Every dialogue unit must include speaker_evidence and speaker_confidence (high|medium|low). Only high-confidence dialogue may use a named role; medium or low confidence must use Narrator. Omit adapted_text when the source wording is preserved.
 4. Split into coherent dramatic chunks at story turns, ambience changes, dense action, or speaker hand-offs. Each chunk has at most three active roles and must cover its ids exactly once.
 5. For each chunk provide concise scene-specific ambience, music style/instruments/atmosphere, foreground sound design, pace, continuity, and expected duration.
 6. This is stage-one analysis. Do not return final_audio_prompt, text_prompt, repeated source text, adaptation essays, coverage summaries, dialogue lists, or voice registry. The workflow builds each Audio 1.0 prompt separately per chunk.
@@ -1152,7 +1153,7 @@ Fixed roles (role: provider speaker and performance identity):
 
 Rules:
 1. Use only the fixed role names. Preserve every input id exactly once and in order in parsed_source_units and chunk_plan.
-2. Infer each unit's speaker, type, emotion, delivery, source-motivated SFX, and music intent without changing story meaning. Every dialogue unit must include speaker_evidence and speaker_confidence (high|medium|low). Use high only for explicit attribution, medium for strong contextual evidence stated in speaker_evidence, and low when the source does not identify the speaker. A low-confidence line must use Narrator rather than a guessed specific character.
+2. Infer each unit's speaker, type, emotion, delivery, source-motivated SFX, and music intent without changing story meaning. Every dialogue unit must include speaker_evidence and speaker_confidence (high|medium|low). Use high only when source evidence is sufficient to bind a named role. Medium or low confidence must use Narrator rather than a guessed specific character.
 3. Split at dramatic turns, ambience changes, dense action, speaker hand-offs, or the 3-active-role limit. Never place two active roles with the same provider speaker in one chunk.
 4. This is faithful audio-drama adaptation, not full read-aloud: retain key dialogue as spoken quotes, use compact narration bridges, and let ambience/music/foreground SFX carry visible action.
 5. Across chunks use one continuous scene-specific score palette. First chunk enters, middle chunks carry without cadence, final chunk alone may resolve.
@@ -1493,6 +1494,28 @@ def normalize_speaker_attribution(unit: dict) -> dict:
     return normalized
 
 
+def named_speaker_has_source_evidence(parsed_units: list[dict], index: int) -> bool:
+    unit = parsed_units[index]
+    role = str(unit.get("speaker") or "")
+    if unit.get("source_kind") != "quoted_text" or role == "Narrator":
+        return True
+    spec = ROLE_SPECS.get(role, {})
+    keywords = [role, str(spec.get("label") or ""), *(spec.get("attribution_keywords", []) or [])]
+    keywords.extend(part for part in role.split() if len(part) >= 3)
+    patterns = [re.compile(rf"\b{re.escape(str(keyword))}\b", re.I) for keyword in keywords if str(keyword).strip()]
+    evidence_texts = [str(unit.get("quote_attribution_text") or "")]
+    for neighbor_index in (index - 1, index + 1):
+        if 0 <= neighbor_index < len(parsed_units):
+            evidence_texts.append(str(parsed_units[neighbor_index].get("source_text") or ""))
+    if any(pattern.search(text) for pattern in patterns for text in evidence_texts):
+        return True
+    if index > 0:
+        previous = parsed_units[index - 1]
+        if previous.get("source_kind") == "quoted_text" and previous.get("speaker") == role:
+            return named_speaker_has_source_evidence(parsed_units, index - 1)
+    return False
+
+
 def repair_quoted_speakers(parsed_units: list[dict]) -> list[dict]:
     repaired = [dict(unit) for unit in parsed_units]
     for index, unit in enumerate(repaired):
@@ -1502,12 +1525,12 @@ def repair_quoted_speakers(parsed_units: list[dict]) -> list[dict]:
         if re.search(r"\bHarry\b", source_text, re.I) and re.search(r"\bYeh\b|\bter\b|\bmusta\b|\bye\b", source_text, re.I):
             unit["speaker"] = "Hagrid"
             unit["speaker_evidence"] = "engineering speaker repair from dialect and Harry vocative"
-            unit["speaker_confidence"] = "medium"
+            unit["speaker_confidence"] = "high"
             continue
         if re.search(r"\bHagrid\b", source_text, re.I) and not re.search(r"\bYeh\b|\bter\b|\bmusta\b|\bye\b", source_text, re.I):
             unit["speaker"] = "Harry Potter"
             unit["speaker_evidence"] = "engineering speaker repair from Hagrid vocative in non-Hagrid line"
-            unit["speaker_confidence"] = "medium"
+            unit["speaker_confidence"] = "high"
             continue
         context_parts = []
         for neighbor_index in (index - 1, index + 1):
@@ -3472,6 +3495,7 @@ def call_seed2_rewrite(run_dir: Path, source_units: list[dict]) -> dict:
         "too many explicit narrator lines",
         "missing must-keep dialogue",
         "must keep real quoted character dialogue",
+        "without verifiable adjacent source evidence",
     ]
     cached_response = run_dir / "logs" / "seed2_rewrite_response.txt"
     if cached_response.exists():
@@ -3482,7 +3506,9 @@ def call_seed2_rewrite(run_dir: Path, source_units: list[dict]) -> dict:
             return data
         except (Exception, SystemExit) as exc:
             last_error = f"Cached rewrite response failed current validation: {str(exc)[:800]}"
-    for attempt in range(1, 4):
+    rewrite_attempts = max(1, int(os.getenv("SEED_REWRITE_ATTEMPTS", "2")))
+    rewrite_timeout = max(10, int(os.getenv("SEED_REWRITE_TIMEOUT", "180")))
+    for attempt in range(1, rewrite_attempts + 1):
         prompt_for_attempt = prompt
         if last_error:
             prompt_for_attempt = (
@@ -3494,16 +3520,35 @@ def call_seed2_rewrite(run_dir: Path, source_units: list[dict]) -> dict:
                 "Return valid JSON only. Escape every double quote inside final_audio_prompt as \\\"."
             )
         try:
-            text = call_with_wall_timeout(
-                int(os.getenv("SEED_REWRITE_TIMEOUT", "360")),
-                lambda: llm_chat.chat_text(
-                    prompt_for_attempt,
-                    system="You are a precise JSON-only audiobook workflow generator. Return one complete valid JSON object. Do not truncate.",
-                    model=REWRITE_MODEL,
-                    temperature=0.1,
-                    max_tokens=int(os.getenv("SEED_REWRITE_MAX_TOKENS", "14000")) if is_auto_planning() else 12000,
-                ),
-            )
+            attempt_prompt = run_dir / "logs" / f"seed2_rewrite_prompt_attempt_{attempt}.txt"
+            write_text(attempt_prompt, prompt_for_attempt)
+            command = [
+                sys.executable,
+                str(LLM_CHAT_CLIENT),
+                "--prompt-file",
+                str(attempt_prompt),
+                "--system",
+                "You are a precise JSON-only audiobook workflow generator. Return one complete valid JSON object. Do not truncate.",
+                "--model",
+                REWRITE_MODEL,
+                "--temperature",
+                "0.1",
+                "--max-tokens",
+                str(int(os.getenv("SEED_REWRITE_MAX_TOKENS", "14000")) if is_auto_planning() else 12000),
+            ]
+            try:
+                result = subprocess.run(
+                    command,
+                    cwd=ROOT,
+                    text=True,
+                    capture_output=True,
+                    timeout=rewrite_timeout,
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise TimeoutError(f"Seed 2.0 Pro rewrite attempt {attempt} exceeded {rewrite_timeout}s") from exc
+            if result.returncode != 0:
+                raise RuntimeError(result.stderr[-2000:] or f"Seed 2.0 Pro rewrite exited {result.returncode}")
+            text = result.stdout.strip()
             write_text(run_dir / "logs" / f"seed2_rewrite_response_attempt_{attempt}.txt", text)
             write_text(run_dir / "logs" / "seed2_rewrite_response.txt", text)
             data = normalize_rewrite(extract_json(text), source_units)
@@ -3513,7 +3558,7 @@ def call_seed2_rewrite(run_dir: Path, source_units: list[dict]) -> dict:
             message = str(exc)
             retryable = any(pattern in message for pattern in retryable_validation_patterns)
             last_error = message[:1000]
-            if attempt < 3 and retryable:
+            if attempt < rewrite_attempts and retryable:
                 time.sleep(20 * attempt)
                 continue
             raise
@@ -3522,7 +3567,7 @@ def call_seed2_rewrite(run_dir: Path, source_units: list[dict]) -> dict:
             retryable = retryable or "IncompleteRead" in str(exc) or "unexpected EOF" in str(exc) or "Remote end closed" in str(exc)
             retryable = retryable or any(pattern in str(exc) for pattern in retryable_validation_patterns)
             last_error = str(exc)[:1000]
-            if attempt < 3 and (retryable or isinstance(exc, json.JSONDecodeError)):
+            if attempt < rewrite_attempts and (retryable or isinstance(exc, json.JSONDecodeError)):
                 time.sleep(20 * attempt)
                 continue
             raise
@@ -3547,14 +3592,17 @@ def validate_rewrite(data: dict, source_units: list[dict]) -> None:
         raise SystemExit("Seed 2.0 Pro rewrite must preserve every source_unit_id in the original order.")
     unsupported_attributions = [
         unit.get("source_unit_id")
-        for unit in data["parsed_source_units"]
+        for index, unit in enumerate(data["parsed_source_units"])
         if unit.get("source_kind") == "quoted_text"
         and unit.get("speaker") != "Narrator"
-        and unit.get("speaker_confidence") not in {"high", "medium"}
+        and (
+            unit.get("speaker_confidence") != "high"
+            or not named_speaker_has_source_evidence(data["parsed_source_units"], index)
+        )
     ]
     if unsupported_attributions:
         raise SystemExit(
-            "Quoted dialogue assigned to a specific role without sufficient attribution evidence: "
+            "Quoted dialogue assigned to a specific role without verifiable adjacent source evidence: "
             f"{unsupported_attributions}. Use Narrator for low-confidence lines or provide concise contextual evidence."
         )
     chunk_unit_ids: list[str] = []

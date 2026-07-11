@@ -111,14 +111,14 @@ def _build_messages(
     return messages
 
 
-def _chat_completion(base_url: str, credential: str, payload: dict) -> dict:
+def _chat_completion(base_url: str, credential: str, payload: dict, timeout: int | None = None) -> dict:
     endpoint = f"{base_url.rstrip('/')}/chat/completions"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {credential}",
     }
     request = Request(endpoint, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
-    with urlopen(request, timeout=int(os.getenv("LLM_TIMEOUT", "300"))) as response:
+    with urlopen(request, timeout=timeout or int(os.getenv("LLM_TIMEOUT", "300"))) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -148,6 +148,7 @@ def chat_text(
     api_key: str | None = None,
     temperature: float = 0.2,
     max_tokens: int | None = None,
+    timeout: int | None = None,
 ) -> str:
     """
     Small reusable helper for other scripts in this repo.
@@ -162,7 +163,7 @@ def chat_text(
     }
     if max_tokens is not None:
         payload["max_tokens"] = max_tokens
-    result = _chat_completion(resolved_base_url, resolved_credential, payload)
+    result = _chat_completion(resolved_base_url, resolved_credential, payload, timeout=timeout)
     return _extract_text(result).strip()
 
 
@@ -176,6 +177,7 @@ def chat_audio(
     api_key: str | None = None,
     temperature: float = 0.1,
     max_tokens: int | None = None,
+    timeout: int | None = None,
 ) -> str:
     """Ask a multimodal chat model to review one or more local audio files."""
     if not audio_paths:
@@ -190,7 +192,7 @@ def chat_audio(
     }
     if max_tokens is not None:
         payload["max_tokens"] = max_tokens
-    result = _chat_completion(resolved_base_url, resolved_credential, payload)
+    result = _chat_completion(resolved_base_url, resolved_credential, payload, timeout=timeout)
     return _extract_text(result).strip()
 
 

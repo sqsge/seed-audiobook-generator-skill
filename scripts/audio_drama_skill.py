@@ -23,6 +23,7 @@ import workflow_input_gate
 ROOT = Path(__file__).resolve().parents[1]
 RUN_ROOT = ROOT / "outputs" / "skill_runs"
 AUDIOBOOK_WORKFLOW = Path(__file__).resolve().parent / "audiobook_workflow.py"
+SEED_AUDIO_CLIENT = Path(__file__).resolve().parent / "seed_audio_client.py"
 CHUNK_WORKER = Path(__file__).resolve().parent / "chunk_worker.py"
 ACTIVE_STATE: tuple[Path, dict] | None = None
 
@@ -181,6 +182,12 @@ def initialize(args: argparse.Namespace) -> tuple[Path, dict]:
             "auto_replan_limit_per_section": 1,
             "auto_replan_counts": {},
         },
+        "casting": {
+            "required": True,
+            "approved": False,
+            "approved_at": None,
+            "samples": {},
+        },
         "final_audio": None,
         "current_stage": "planned",
         "current_item": None,
@@ -192,6 +199,72 @@ def initialize(args: argparse.Namespace) -> tuple[Path, dict]:
 
 def run_subprocess(command: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, cwd=cwd, text=True, capture_output=True)
+
+
+def casting_registry_sha256(run_dir: Path) -> str:
+    return hashlib.sha256((run_dir / "voice_registry.json").read_bytes()).hexdigest()
+
+
+def casting_is_approved(run_dir: Path, state: dict) -> bool:
+    casting = state.get("casting", {})
+    return bool(casting.get("approved")) and casting.get("approved_registry_sha256") == casting_registry_sha256(run_dir)
+
+
+def prepare_casting_samples(run_dir: Path, state: dict) -> bool:
+    registry = shared.read_json(run_dir / "voice_registry.json")
+    roles = registry.get("roles", {})
+    casting = state.setdefault("casting", {"required": True, "approved": False, "approved_at": None, "samples": {}})
+    sample_dir = run_dir / "casting_samples"
+    prompt_dir = run_dir / "planning" / "casting_prompts"
+    sample_dir.mkdir(parents=True, exist_ok=True)
+    prompt_dir.mkdir(parents=True, exist_ok=True)
+    for role, spec in roles.items():
+        key = str(spec.get("key") or re.sub(r"[^a-z0-9]+", "_", role.lower()).strip("_"))
+        output = sample_dir / f"{key}.wav"
+        prompt_path = prompt_dir / f"{key}.txt"
+        prompt_path.write_text(
+            "[Single speaker only. No narrator, music, ambience, or sound effects. Clean dry voice casting sample.]\n"
+            + str(spec.get("reference_prompt") or f"This is the casting sample for {role}."),
+            encoding="utf-8",
+        )
+        prior_sample = casting.get("samples", {}).get(role, {})
+        prior_speaker = prior_sample.get("speaker") if isinstance(prior_sample, dict) else None
+        if not output.exists() or prior_speaker != spec.get("default_speaker"):
+            result = run_subprocess(
+                [
+                    sys.executable,
+                    str(SEED_AUDIO_CLIENT),
+                    "--text-file",
+                    str(prompt_path),
+                    "--speaker",
+                    str(spec.get("default_speaker")),
+                    "--out",
+                    str(output),
+                    "--format",
+                    "wav",
+                    "--sample-rate",
+                    "24000",
+                    "--speech-rate",
+                    "2",
+                ],
+                ROOT,
+            )
+            if result.returncode != 0:
+                casting["last_error"] = result.stderr[-2000:] or f"casting_sample_failed:{role}"
+                state["status"] = "blocked"
+                save_state(run_dir, state)
+                return False
+        casting.setdefault("samples", {})[role] = {
+            "audio": str(output.relative_to(run_dir)),
+            "speaker": spec.get("default_speaker"),
+        }
+    casting["registry_sha256"] = casting_registry_sha256(run_dir)
+    state["status"] = "awaiting_casting_approval"
+    state["current_stage"] = "awaiting_casting_approval"
+    state["current_item"] = None
+    save_state(run_dir, state)
+    append_event(run_dir, "casting_samples_ready", roles=list(roles))
+    return True
 
 
 def prepare_section(run_dir: Path, state: dict, section: dict) -> bool:
@@ -652,6 +725,7 @@ def print_status(run_dir: Path, state: dict) -> None:
         "current_item": state.get("current_item"),
         "sections": {status: sum(item["status"] == status for item in state.get("sections", [])) for status in sorted({item["status"] for item in state.get("sections", [])})},
         "chunks": {status: sum(item["status"] == status for item in chunks) for status in sorted({item["status"] for item in chunks})},
+        "casting": state.get("casting"),
         "pilot": state.get("pilot"),
         "pilot_audio": pilot_audio,
         "final_audio": state.get("final_audio"),
@@ -676,6 +750,8 @@ def main() -> int:
     resume_parser.add_argument("--run-id", required=True)
     approve_parser = sub.add_parser("approve-pilot")
     approve_parser.add_argument("--run-id", required=True)
+    approve_casting_parser = sub.add_parser("approve-casting")
+    approve_casting_parser.add_argument("--run-id", required=True)
     status_parser = sub.add_parser("status")
     status_parser.add_argument("--run-id", required=True)
     reconcile_parser = sub.add_parser("reconcile")
@@ -688,6 +764,10 @@ def main() -> int:
     if args.command == "run":
         run_dir, state = initialize(args)
         with run_lease(run_dir, state):
+            if state.get("casting", {}).get("required") and not casting_is_approved(run_dir, state):
+                prepare_casting_samples(run_dir, state)
+                print_status(run_dir, state)
+                return 0 if state.get("status") == "awaiting_casting_approval" else 3
             state["status"] = "running"
             save_state(run_dir, state)
             if not prepare_all(run_dir, state):
@@ -728,8 +808,23 @@ def main() -> int:
         append_event(run_dir, "pilot_approved")
         print_status(run_dir, state)
         return 0
+    if args.command == "approve-casting":
+        assert_no_active_lease(run_dir)
+        if state.get("status") != "awaiting_casting_approval":
+            raise SystemExit("Casting can be approved only after all dry voice samples are ready.")
+        state.setdefault("casting", {})["approved"] = True
+        state["casting"]["approved_at"] = now_iso()
+        state["casting"]["approved_registry_sha256"] = casting_registry_sha256(run_dir)
+        state["status"] = "casting_approved"
+        state["current_stage"] = "casting_approved"
+        save_state(run_dir, state)
+        append_event(run_dir, "casting_approved")
+        print_status(run_dir, state)
+        return 0
     if state.get("schema_version") != 2:
         raise SystemExit("This run uses the retired workflow schema; start a new final-workflow run id.")
+    if state.get("casting", {}).get("required") and not casting_is_approved(run_dir, state):
+        raise SystemExit("Dry voice casting samples require human approval before section planning and provider batch generation.")
     with run_lease(run_dir, state):
         if any(section.get("status") == "needs_replan" for section in state["sections"]):
             retry_cached_static_gate_once(run_dir, state)

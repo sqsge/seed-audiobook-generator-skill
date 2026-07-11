@@ -12,6 +12,8 @@ Use this skill for a complete fiction chapter or long scene that should become a
 - Use `scripts/audio_drama_skill.py` as the only user-facing runner.
 - Never send raw long fiction directly to Seed Audio.
 - Keep one chapter-level role-to-voice registry across every section and chunk.
+- Generate clean dry casting samples for every registered role and require explicit human casting approval before section planning or batch generation.
+- Require attribution evidence and confidence for every quoted source unit. Never bind low-confidence unattributed dialogue to a named character.
 - Bind no more than three active voices in one Audio request, with no duplicate provider speaker id in that request.
 - Validate source coverage, complete spoken sentences, voice bindings, sound layers, and prompt budget before any Audio provider call.
 - Follow the official Audio 1.0 prompt formula: music opening, natural first-appearance character description, quoted line, naturally timed sound effect, then the next story event.
@@ -33,6 +35,8 @@ Use this skill for a complete fiction chapter or long scene that should become a
 source text
   -> semantic sections
   -> chapter voice registry
+  -> dry role casting samples
+  -> human casting approval
   -> dramatic chunks
   -> Seed 2 Pro director rewrite
   -> static Audio input gate
@@ -58,7 +62,7 @@ Read [references/final-workflow.md](references/final-workflow.md), [references/r
 
 ## Commands
 
-Start a new run. This prepares every section, applies the static input gate, generates three pilots, then stops for approval:
+Start a new run. This creates the chapter registry and dry casting samples, then stops for casting approval:
 
 ```bash
 python3 scripts/audio_drama_skill.py run \
@@ -76,7 +80,16 @@ python3 scripts/audio_drama_skill.py run \
   --run-id chapter_run_001
 ```
 
-Prepare and validate all director inputs without generating audio:
+After listening to every dry role sample, approve the casting:
+
+```bash
+python3 scripts/audio_drama_skill.py approve-casting --run-id chapter_run_001
+python3 scripts/audio_drama_skill.py resume --run-id chapter_run_001
+```
+
+The resumed run prepares every section, applies the attribution and static Audio input gates, generates representative pilots, then stops again for pilot approval.
+
+After casting approval, prepare and validate all director inputs without generating scene audio:
 
 ```bash
 python3 scripts/audio_drama_skill.py run \

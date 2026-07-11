@@ -5,14 +5,19 @@
 1. Normalize source text and preserve a source hash.
 2. Split at semantic paragraph and scene boundaries.
 3. Create one chapter-wide role and voice registry.
-4. Use Seed 2 Pro to parse source units and propose dramatic chunks.
-5. Compile chronological mixed-scene Audio prompts.
+4. Generate one clean dry casting sample per role and require human approval.
+5. Use Seed 2 Pro to parse source units, record speaker evidence/confidence, and propose dramatic chunks.
+6. Compile chronological mixed-scene Audio prompts.
 
 Planning is complete only when every source unit appears exactly once and in order.
 
 ## Admission Layer
 
-The static gate runs before Seed Audio. It verifies complete spoken sentences, narrator coverage, must-keep dialogue, unique active voices, three-reference capacity, required sound layers, language lock, and a 2700-character base prompt budget. A failed admission report forbids provider calls.
+The static gate runs before scene generation. It verifies complete spoken sentences, narrator coverage, must-keep dialogue, supported speaker attribution, unique active voices, three-reference capacity, required sound layers, language lock, and a 2700-character base prompt budget. Named-character dialogue with low attribution confidence is rejected. A failed admission report forbids provider calls.
+
+## Casting Layer
+
+The runner generates dry samples from the chapter registry before section planning. Human approval is mandatory because provider labels and automated gender/age judgments do not prove that a voice is perceptually suitable for the role. Changing a registered speaker invalidates casting approval and requires new samples.
 
 ## Pilot Layer
 

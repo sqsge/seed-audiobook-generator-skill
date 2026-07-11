@@ -5,6 +5,8 @@
 ## Run States
 
 - `planned`: source, sections, and voice registry exist.
+- `awaiting_casting_approval`: every registered role has a dry sample and section planning is locked.
+- `casting_approved`: a human approved the chapter-wide role-to-voice mapping.
 - `running`: the runner holds the active lease.
 - `prepared`: all Audio inputs passed the static gate; no audio was requested.
 - `awaiting_pilot_approval`: representative pilot chunks passed automated checks and require listening approval.

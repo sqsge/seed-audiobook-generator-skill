@@ -36,6 +36,70 @@ class FinalWorkflowTests(unittest.TestCase):
     def test_single_dangling_spoken_word_does_not_loop(self):
         self.assertEqual(audiobook_workflow.complete_spoken_bridge("He"), "He.")
 
+    def test_unattributed_named_dialogue_is_low_confidence_without_evidence(self):
+        unit = audiobook_workflow.normalize_speaker_attribution(
+            {"source_unit_id": "s1", "source_kind": "quoted_text", "speaker": "Ginny Weasley"}
+        )
+        self.assertEqual(unit["speaker_confidence"], "low")
+
+    def test_explicit_attribution_is_high_confidence(self):
+        unit = audiobook_workflow.normalize_speaker_attribution(
+            {
+                "source_unit_id": "s1",
+                "source_kind": "quoted_text",
+                "speaker": "Harry Potter",
+                "quote_attribution_text": "yelled Harry",
+            }
+        )
+        self.assertEqual(unit["speaker_confidence"], "high")
+        self.assertEqual(unit["speaker_evidence"], "yelled Harry")
+
+    def test_casting_samples_gate_batch_until_human_approval(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as temp_dir:
+            run_dir = Path(temp_dir)
+            (run_dir / "voice_registry.json").write_text(
+                json.dumps(
+                    {
+                        "roles": {
+                            "Narrator": {
+                                "key": "narrator",
+                                "default_speaker": "en_male_knightley_uranus_bigtts",
+                                "reference_prompt": "The tower stood silent.",
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            state = {"casting": {"required": True, "approved": False, "samples": {}}}
+
+            def fake_run(command, _cwd):
+                output = Path(command[command.index("--out") + 1])
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_bytes(b"RIFFdry-voice-sample")
+                return type("Completed", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+            with patch.object(audio_drama_skill, "run_subprocess", side_effect=fake_run):
+                with patch.object(audio_drama_skill, "save_state"):
+                    with patch.object(audio_drama_skill, "append_event"):
+                        prepared = audio_drama_skill.prepare_casting_samples(run_dir, state)
+        self.assertTrue(prepared)
+        self.assertEqual(state["status"], "awaiting_casting_approval")
+        self.assertFalse(state["casting"]["approved"])
+        self.assertEqual(state["casting"]["samples"]["Narrator"]["audio"], "casting_samples/narrator.wav")
+        self.assertEqual(state["casting"]["samples"]["Narrator"]["speaker"], "en_male_knightley_uranus_bigtts")
+
+    def test_casting_approval_is_invalidated_by_registry_change(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as temp_dir:
+            run_dir = Path(temp_dir)
+            registry = run_dir / "voice_registry.json"
+            registry.write_text('{"roles":{"Narrator":{"default_speaker":"voice-a"}}}', encoding="utf-8")
+            approved_hash = audio_drama_skill.casting_registry_sha256(run_dir)
+            state = {"casting": {"approved": True, "approved_registry_sha256": approved_hash}}
+            self.assertTrue(audio_drama_skill.casting_is_approved(run_dir, state))
+            registry.write_text('{"roles":{"Narrator":{"default_speaker":"voice-b"}}}', encoding="utf-8")
+            self.assertFalse(audio_drama_skill.casting_is_approved(run_dir, state))
+
     def make_gate_fixture(self, root: Path, narrator_line: str) -> Path:
         (root / "06_generation_requests").mkdir(parents=True)
         (root / "02_source_units.json").write_text(
@@ -104,6 +168,29 @@ class FinalWorkflowTests(unittest.TestCase):
             report = workflow_input_gate.evaluate(section)
         self.assertEqual(report["status"], "pass")
         self.assertFalse(report["policy"]["provider_calls_allowed_on_fail"])
+
+    def test_pre_generation_gate_rejects_unsupported_specific_speaker(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as temp_dir:
+            section = self.make_gate_fixture(Path(temp_dir), "Students huddled against the walls.")
+            (section / "03_scene_parse.json").write_text(
+                json.dumps(
+                    {
+                        "parsed_source_units": [
+                            {
+                                "source_unit_id": "s0001",
+                                "source_kind": "quoted_text",
+                                "speaker": "Ginny Weasley",
+                                "speaker_confidence": "low",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            report = workflow_input_gate.evaluate(section)
+        self.assertEqual(report["status"], "fail")
+        self.assertIn("unsupported_specific_speaker_attribution", report["section_failures"])
+        self.assertEqual(report["unsupported_attribution_unit_ids"], ["s0001"])
 
     def test_pre_generation_gate_warns_when_only_repair_reserve_is_reduced(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as temp_dir:

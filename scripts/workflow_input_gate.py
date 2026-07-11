@@ -40,6 +40,8 @@ def quote_is_complete(quote: str) -> bool:
 
 def evaluate(section_dir: Path) -> dict:
     source_units = read_json(section_dir / "02_source_units.json")
+    scene_parse_path = section_dir / "03_scene_parse.json"
+    scene_parse = read_json(scene_parse_path) if scene_parse_path.exists() else {"parsed_source_units": []}
     registry = read_json(section_dir / "04_voice_registry.json")
     roles = {item["role"]: item for item in registry.get("voices", [])}
     requests = [read_json(path) for path in sorted((section_dir / "06_generation_requests").glob("chunk_*.json"))]
@@ -48,6 +50,15 @@ def evaluate(section_dir: Path) -> dict:
     section_failures: list[str] = []
     if actual_ids != expected_ids:
         section_failures.append("source_unit_coverage_or_order_mismatch")
+    unsupported_attributions = [
+        unit.get("source_unit_id")
+        for unit in scene_parse.get("parsed_source_units", [])
+        if unit.get("source_kind") == "quoted_text"
+        and unit.get("speaker") != "Narrator"
+        and unit.get("speaker_confidence") not in {"high", "medium"}
+    ]
+    if unsupported_attributions:
+        section_failures.append("unsupported_specific_speaker_attribution")
 
     chunks: list[dict] = []
     for request in requests:
@@ -111,6 +122,7 @@ def evaluate(section_dir: Path) -> dict:
     return {
         "status": "pass" if not section_failures and not failed_chunks else "fail",
         "section_failures": section_failures,
+        "unsupported_attribution_unit_ids": unsupported_attributions,
         "failed_chunk_ids": failed_chunks,
         "policy": {
             "base_prompt_budget": BASE_PROMPT_BUDGET,

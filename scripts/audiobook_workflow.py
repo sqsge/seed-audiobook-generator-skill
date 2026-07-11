@@ -817,7 +817,7 @@ def compact_dynamic_rewrite_prompt(source_units: list[dict], speaker_candidates:
 Rules:
 1. Preserve every input id exactly once and in order in parsed_source_units and chunk_plan.
 2. Discover Narrator and the speaking roles. Give each role a short stable voice identity and choose default_speaker only from {json.dumps(speaker_candidates, ensure_ascii=False)}.
-3. For every unit infer speaker, type, brief emotion and delivery, motivated before/during/after SFX, SFX layer, and brief music intent. Omit adapted_text when the source wording is preserved.
+3. For every unit infer speaker, type, brief emotion and delivery, motivated before/during/after SFX, SFX layer, and brief music intent. Every dialogue unit must include speaker_evidence and speaker_confidence (high|medium|low). Low-confidence unattributed dialogue must use Narrator, never a guessed named role. Omit adapted_text when the source wording is preserved.
 4. Split into coherent dramatic chunks at story turns, ambience changes, dense action, or speaker hand-offs. Each chunk has at most three active roles and must cover its ids exactly once.
 5. For each chunk provide concise scene-specific ambience, music style/instruments/atmosphere, foreground sound design, pace, continuity, and expected duration.
 6. This is stage-one analysis. Do not return final_audio_prompt, text_prompt, repeated source text, adaptation essays, coverage summaries, dialogue lists, or voice registry. The workflow builds each Audio 1.0 prompt separately per chunk.
@@ -827,7 +827,7 @@ Input units:
 {json.dumps(units, ensure_ascii=False, separators=(',', ':'))}
 
 Compact schema:
-{{"scene_id":"{SCENE_ID}","production_mode":"{PRODUCTION_MODE}","roles":{{"Narrator":{{"key":"narrator","label":"Narrator","reference_mode":"speaker","default_speaker":"{speaker_candidates[0]}","description":"brief voice identity","attribution_keywords":[],"reference_prompt":"brief dry sample"}}}},"parsed_source_units":[{{"source_unit_id":"s0001","type":"narration|dialogue|monologue","speaker":"role","emotion":"brief","delivery":"brief","adapted_text":"omit when verbatim","sfx_before":[],"sfx_during":[],"sfx_after":[],"sfx_layer":"none|ambience|background|foreground","music_intent":"brief"}}],"chunk_plan":[{{"chunk_id":"chunk_001","title":"brief","source_unit_ids":[],"active_roles":[],"persistent_ambience":"brief","music_bed":"brief","sound_design":"brief","speech_rate":0,"pace_note":"brief","continuity":{{"previous_context_summary":"brief","chunk_opening_state":"brief","chunk_ending_state":"brief","next_context_hint":"brief"}},"expected_duration_sec":{{"min":30,"max":120}}}}],"scene_notes":"brief"}}
+{{"scene_id":"{SCENE_ID}","production_mode":"{PRODUCTION_MODE}","roles":{{"Narrator":{{"key":"narrator","label":"Narrator","reference_mode":"speaker","default_speaker":"{speaker_candidates[0]}","description":"brief voice identity","attribution_keywords":[],"reference_prompt":"brief dry sample"}}}},"parsed_source_units":[{{"source_unit_id":"s0001","type":"narration|dialogue|monologue","speaker":"role","speaker_evidence":"explicit attribution or concise contextual evidence","speaker_confidence":"high|medium|low","emotion":"brief","delivery":"brief","adapted_text":"omit when verbatim","sfx_before":[],"sfx_during":[],"sfx_after":[],"sfx_layer":"none|ambience|background|foreground","music_intent":"brief"}}],"chunk_plan":[{{"chunk_id":"chunk_001","title":"brief","source_unit_ids":[],"active_roles":[],"persistent_ambience":"brief","music_bed":"brief","sound_design":"brief","speech_rate":0,"pace_note":"brief","continuity":{{"previous_context_summary":"brief","chunk_opening_state":"brief","chunk_ending_state":"brief","next_context_hint":"brief"}},"expected_duration_sec":{{"min":30,"max":120}}}}],"scene_notes":"brief"}}
 """
 
 
@@ -1152,7 +1152,7 @@ Fixed roles (role: provider speaker and performance identity):
 
 Rules:
 1. Use only the fixed role names. Preserve every input id exactly once and in order in parsed_source_units and chunk_plan.
-2. Infer each unit's speaker, type, emotion, delivery, source-motivated SFX, and music intent without changing story meaning.
+2. Infer each unit's speaker, type, emotion, delivery, source-motivated SFX, and music intent without changing story meaning. Every dialogue unit must include speaker_evidence and speaker_confidence (high|medium|low). Use high only for explicit attribution, medium for strong contextual evidence stated in speaker_evidence, and low when the source does not identify the speaker. A low-confidence line must use Narrator rather than a guessed specific character.
 3. Split at dramatic turns, ambience changes, dense action, speaker hand-offs, or the 3-active-role limit. Never place two active roles with the same provider speaker in one chunk.
 4. This is faithful audio-drama adaptation, not full read-aloud: retain key dialogue as spoken quotes, use compact narration bridges, and let ambience/music/foreground SFX carry visible action.
 5. Across chunks use one continuous scene-specific score palette. First chunk enters, middle chunks carry without cadence, final chunk alone may resolve.
@@ -1166,7 +1166,7 @@ Input units:
 {json.dumps(units, ensure_ascii=False, separators=(',', ':'))}
 
 Compact output schema:
-{{"scene_id":"{SCENE_ID}","production_mode":"{PRODUCTION_MODE}","parsed_source_units":[{{"source_unit_id":"s0001","type":"narration|dialogue|monologue","speaker":"fixed role","emotion":"brief","delivery":"brief","adapted_text":"omit when verbatim","sfx_before":[],"sfx_during":[],"sfx_after":[],"sfx_layer":"none|ambience|background|foreground","music_intent":"brief"}}],"chunk_plan":[{{"chunk_id":"chunk_001","title":"brief","source_unit_ids":[],"active_roles":[],"persistent_ambience":"brief","music_bed":"brief","sound_design":"brief","speech_rate":0,"pace_note":"brief","continuity":{{"previous_context_summary":"brief","chunk_opening_state":"brief","chunk_ending_state":"brief","next_context_hint":"brief"}},"expected_duration_sec":{{"min":30,"max":120}}}}],"scene_notes":"brief"}}
+{{"scene_id":"{SCENE_ID}","production_mode":"{PRODUCTION_MODE}","parsed_source_units":[{{"source_unit_id":"s0001","type":"narration|dialogue|monologue","speaker":"fixed role","speaker_evidence":"explicit attribution or concise contextual evidence","speaker_confidence":"high|medium|low","emotion":"brief","delivery":"brief","adapted_text":"omit when verbatim","sfx_before":[],"sfx_during":[],"sfx_after":[],"sfx_layer":"none|ambience|background|foreground","music_intent":"brief"}}],"chunk_plan":[{{"chunk_id":"chunk_001","title":"brief","source_unit_ids":[],"active_roles":[],"persistent_ambience":"brief","music_bed":"brief","sound_design":"brief","speech_rate":0,"pace_note":"brief","continuity":{{"previous_context_summary":"brief","chunk_opening_state":"brief","chunk_ending_state":"brief","next_context_hint":"brief"}},"expected_duration_sec":{{"min":30,"max":120}}}}],"scene_notes":"brief"}}
 """
 
 
@@ -1473,6 +1473,26 @@ def local_plan_fields_for_units(plan: dict, unit_ids: list[str], parsed_by_id: d
     return filtered
 
 
+def normalize_speaker_attribution(unit: dict) -> dict:
+    normalized = dict(unit)
+    if normalized.get("source_kind") != "quoted_text":
+        normalized["speaker_confidence"] = "high"
+        normalized.setdefault("speaker_evidence", "narration")
+        return normalized
+    attribution = str(normalized.get("quote_attribution_text") or "").strip()
+    evidence = str(normalized.get("speaker_evidence") or "").strip()
+    confidence = str(normalized.get("speaker_confidence") or "").strip().lower()
+    if attribution:
+        normalized["speaker_evidence"] = attribution
+        normalized["speaker_confidence"] = "high"
+    elif confidence in {"high", "medium"} and len(evidence) >= 12:
+        normalized["speaker_confidence"] = confidence
+    else:
+        normalized["speaker_confidence"] = "low"
+        normalized.setdefault("speaker_evidence", "source does not explicitly identify the speaker")
+    return normalized
+
+
 def repair_quoted_speakers(parsed_units: list[dict]) -> list[dict]:
     repaired = [dict(unit) for unit in parsed_units]
     for index, unit in enumerate(repaired):
@@ -1482,10 +1502,12 @@ def repair_quoted_speakers(parsed_units: list[dict]) -> list[dict]:
         if re.search(r"\bHarry\b", source_text, re.I) and re.search(r"\bYeh\b|\bter\b|\bmusta\b|\bye\b", source_text, re.I):
             unit["speaker"] = "Hagrid"
             unit["speaker_evidence"] = "engineering speaker repair from dialect and Harry vocative"
+            unit["speaker_confidence"] = "medium"
             continue
         if re.search(r"\bHagrid\b", source_text, re.I) and not re.search(r"\bYeh\b|\bter\b|\bmusta\b|\bye\b", source_text, re.I):
             unit["speaker"] = "Harry Potter"
             unit["speaker_evidence"] = "engineering speaker repair from Hagrid vocative in non-Hagrid line"
+            unit["speaker_confidence"] = "medium"
             continue
         context_parts = []
         for neighbor_index in (index - 1, index + 1):
@@ -1516,6 +1538,7 @@ def repair_quoted_speakers(parsed_units: list[dict]) -> list[dict]:
         if best_role != current and best_score > current_score:
             unit["speaker"] = best_role
             unit["speaker_evidence"] = f"engineering speaker repair from adjacent attribution/context: {context[:180]}"
+            unit["speaker_confidence"] = "medium"
     return repaired
 
 
@@ -3270,6 +3293,7 @@ def normalize_rewrite(data: dict, source_units: list[dict]) -> dict:
         normalized_parsed.append(merged)
     if is_auto_planning() and is_english_prompt():
         normalized_parsed = repair_quoted_speakers(normalized_parsed)
+    normalized_parsed = [normalize_speaker_attribution(unit) for unit in normalized_parsed]
     data["parsed_source_units"] = normalized_parsed
 
     parsed_by_id = {unit["source_unit_id"]: unit for unit in normalized_parsed}
@@ -3521,6 +3545,18 @@ def validate_rewrite(data: dict, source_units: list[dict]) -> None:
     parsed_ids = [unit.get("source_unit_id") for unit in data["parsed_source_units"]]
     if parsed_ids != expected_ids:
         raise SystemExit("Seed 2.0 Pro rewrite must preserve every source_unit_id in the original order.")
+    unsupported_attributions = [
+        unit.get("source_unit_id")
+        for unit in data["parsed_source_units"]
+        if unit.get("source_kind") == "quoted_text"
+        and unit.get("speaker") != "Narrator"
+        and unit.get("speaker_confidence") not in {"high", "medium"}
+    ]
+    if unsupported_attributions:
+        raise SystemExit(
+            "Quoted dialogue assigned to a specific role without sufficient attribution evidence: "
+            f"{unsupported_attributions}. Use Narrator for low-confidence lines or provide concise contextual evidence."
+        )
     chunk_unit_ids: list[str] = []
     for chunk in data["director_prompt_chunks"]:
         prompt = chunk.get("text_prompt", "")

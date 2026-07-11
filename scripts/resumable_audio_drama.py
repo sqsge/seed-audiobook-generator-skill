@@ -254,7 +254,14 @@ def section_result(section_dir: Path) -> dict:
     }
 
 
-def run_sections(run_dir: Path, state: dict, *, generate: bool, allow_extra_review_cycle: bool = False) -> int:
+def run_sections(
+    run_dir: Path,
+    state: dict,
+    *,
+    generate: bool,
+    allow_extra_review_cycle: bool = False,
+    rebuild_director_prompts: bool = False,
+) -> int:
     state["status"] = "running"
     state["current_stage"] = "section_processing"
     save_state(run_dir, state)
@@ -265,7 +272,6 @@ def run_sections(run_dir: Path, state: dict, *, generate: bool, allow_extra_revi
             continue
         section_id = section["section_id"]
         section_dir = run_dir / section["work_dir"]
-        preserve_interrupted_rewrite(run_dir, section_dir, section_id)
         if section.get("status") == "needs_review":
             if (
                 int(section.get("review_cycles", 0)) >= int(limits.get("max_review_cycles", 2))
@@ -281,6 +287,28 @@ def run_sections(run_dir: Path, state: dict, *, generate: bool, allow_extra_revi
             if allow_extra_review_cycle:
                 append_event(run_dir, "extra_review_cycle_authorized", section_id=section_id)
             preserve_review_checkpoint(run_dir, section_dir, section_id, int(section.get("attempts", 0)))
+            if rebuild_director_prompts:
+                state["current_section"] = section_id
+                state["current_stage"] = "rebuild_director_prompts"
+                save_state(run_dir, state)
+                rebuild_cmd = [
+                    sys.executable, str(AUDIOBOOK_WORKFLOW),
+                    "--story-config", str(run_dir / section["story_config"]),
+                    "--resume-partial-run-id", section_id,
+                    "--output-root", str(run_dir / "sections"),
+                ]
+                rebuild = subprocess.run(rebuild_cmd, cwd=ROOT, text=True, capture_output=True)
+                logs = run_dir / "runner_logs"
+                logs.mkdir(parents=True, exist_ok=True)
+                (logs / f"{section_id}.rebuild.stdout.txt").write_text(rebuild.stdout, encoding="utf-8")
+                (logs / f"{section_id}.rebuild.stderr.txt").write_text(rebuild.stderr, encoding="utf-8")
+                if rebuild.returncode != 0:
+                    section["status"] = "failed"
+                    section["last_error"] = rebuild.stderr[-2000:] or f"rebuild_exit_code={rebuild.returncode}"
+                    state["status"] = "blocked"
+                    save_state(run_dir, state)
+                    return rebuild.returncode
+                append_event(run_dir, "director_prompts_rebuilt", section_id=section_id)
         section["status"] = "running"
         section["attempts"] = int(section.get("attempts", 0)) + 1
         section["last_error"] = None
@@ -294,6 +322,13 @@ def run_sections(run_dir: Path, state: dict, *, generate: bool, allow_extra_revi
                 sys.executable, str(AUDIOBOOK_WORKFLOW),
                 "--story-config", str(run_dir / section["story_config"]),
                 "--resume-run-id", section_id,
+                "--output-root", str(run_dir / "sections"),
+            ]
+        elif section_dir.exists():
+            cmd = [
+                sys.executable, str(AUDIOBOOK_WORKFLOW),
+                "--story-config", str(run_dir / section["story_config"]),
+                "--resume-partial-run-id", section_id,
                 "--output-root", str(run_dir / "sections"),
             ]
         else:
@@ -408,6 +443,7 @@ def main() -> int:
     resume_parser.add_argument("--run-id", required=True)
     resume_parser.add_argument("--prepare-only", action="store_true")
     resume_parser.add_argument("--allow-extra-review-cycle", action="store_true")
+    resume_parser.add_argument("--rebuild-director-prompts", action="store_true")
     status_parser = sub.add_parser("status", help="Print current state without calling providers.")
     status_parser.add_argument("--run-id", required=True)
     args = parser.parse_args()
@@ -427,6 +463,7 @@ def main() -> int:
             state,
             generate=not args.prepare_only,
             allow_extra_review_cycle=args.allow_extra_review_cycle,
+            rebuild_director_prompts=args.rebuild_director_prompts,
         )
         print_status(run_dir, read_json(state_path(run_dir)))
         return code

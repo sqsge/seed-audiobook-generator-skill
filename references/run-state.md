@@ -1,38 +1,32 @@
 # Run State Contract
 
-`outputs/skill_runs/<run-id>/run_state.json` is the authoritative chapter state. It is written atomically after each state transition.
+`outputs/skill_runs/<run-id>/run_state.json` is the authoritative state. Schema version 2 stores section and chunk states separately and is written atomically after every transition.
 
-## Chapter States
+## Run States
 
-- `planned`: source, sections, and voice registry are stored.
-- `running`: one section is actively being rewritten, generated, or reviewed.
-- `prepared`: all section director artifacts exist; audio generation has not completed.
-- `interrupted`: the foreground process was interrupted and can be resumed.
-- `needs_review`: generated audio exists, but one section failed an enabled delivery gate.
-- `blocked`: a provider or executable returned a concrete failure.
-- `completed`: every section is accepted and the chapter audio is stitched.
+- `planned`: source, sections, and voice registry exist.
+- `running`: the runner holds the active lease.
+- `prepared`: all Audio inputs passed the static gate; no audio was requested.
+- `awaiting_pilot_approval`: representative pilot chunks passed automated checks and require listening approval.
+- `pilot_approved`: a human approved the selected pilots.
+- `needs_replan`: at least one input or rendered chunk must return to planning.
+- `blocked`: an executable or provider failed before a valid workflow decision.
+- `interrupted`: execution ended while all completed artifacts were retained.
+- `completed`: every chunk and section is accepted and the chapter is stitched.
 
-## Section States
+## Chunk States
 
-- `planned`: section input exists.
-- `running`: the lower-level workflow is active.
-- `prepared`: director prompts and generation requests exist.
-- `interrupted`: restart with the existing section manifest and artifacts.
-- `needs_review`: preserve the current checkpoint and retry only gated chunks.
-- `failed`: resolve `last_error`, then resume.
-- `accepted`: immutable for normal resume; never regenerate automatically.
+- `planned`
+- `rewritten`
+- `input_validated`
+- `generating`
+- `accepted`
+- `needs_replan`
 
-## Recovery Invariants
+There is no unlimited retry state. One initial render and one repair are the maximum for one prompt. A second audible failure changes the chunk to `needs_replan`.
 
-1. A repeated `run` with the same `run-id` loads state instead of re-planning.
-2. `status` never calls an external provider.
-3. Accepted sections are skipped.
-4. Existing decoded chunks are reused.
-5. Forced chunk regeneration first copies the previous prompt, raw audio, cleaned audio, and metadata into `07_audio_revisions`.
-6. A previous QA checkpoint is copied into `history` before retrying a `needs_review` section.
-7. A section directory without a manifest is retained under `history` before a clean rewrite attempt.
-8. Repeated review failures stop at the configured review-cycle limit instead of creating an unbounded regeneration loop.
+## Lease And Recovery
 
-An additional cycle requires the explicit `resume --allow-extra-review-cycle` flag after human inspection.
+`run_lease.json` stores the runner pid and heartbeat. A live lease prevents duplicate workflows. `SIGINT` and `SIGTERM` mark the run interrupted before exit. If a process dies without running its handler, `reconcile` compares state with the lease pid and converts stale `running` to `interrupted` without calling providers.
 
-The presence of a WAV is not an acceptance decision. State plus the section reports determine whether it can be stitched.
+Accepted chunks are immutable during normal resume. Existing Seed 2 Pro responses, prompts, audio, and QA reports are reused. Replaced audio remains under `07_audio_revisions`.

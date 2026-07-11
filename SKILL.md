@@ -1,139 +1,165 @@
 ---
 name: seed-audiobook-generator
-description: Use this skill to turn long fiction into a resumable multi-character Seed Audio drama. It plans sections and dramatic chunks, keeps a chapter-wide voice registry, performs Seed 2.0 Pro sound-director rewriting, generates and stitches Seed Audio, preserves every intermediate artifact and revision, and resumes after interruption without regenerating accepted sections.
+description: Use this skill to turn long English fiction into a resumable multi-character Seed Audio drama. It plans sections and chunks, locks chapter-wide voices, statically validates every Audio 1.0 input, generates representative pilot samples for human approval, then runs chunk-level generation, review, replanning, and stitching with immutable artifacts and crash recovery.
 ---
 
-# Resumable Seed Audio Drama
+# Seed Audio Drama Generator
 
-Use this skill for a complete fiction chapter or long scene that should become an English multi-character audio drama. The workflow is stateful: inspect or resume an existing run before starting a new one.
+Use this skill for a complete fiction chapter or long scene that should become an English multi-character audio drama. The source text is the only required story input. A fixed voice registry is optional.
 
-## Operating Rules
+## Non-Negotiable Rules
 
-- Treat the source text as the only required content input.
-- Create one immutable `run-id` for one source and production profile.
-- Check `status` before `run` when a run may already exist.
-- Never restart or duplicate a run merely because a provider call or review was interrupted.
-- Reuse the chapter-wide voice registry for every section and chunk.
-- Keep each Seed Audio request within the three-active-reference limit.
-- Preserve source, section plans, voice registry, director prompts, requests, audio parts, revisions, reports, and event history.
-- ASR is optional evidence. It is off by default and must not be used as the normal delivery gate.
-- Use balanced performance review by default. Regenerate only chunks with major audible delivery defects.
-- Never reveal or package `.env`, API keys, generated runs, or signed provider URLs.
+- Use `scripts/audio_drama_skill.py` as the only user-facing runner.
+- Never send raw long fiction directly to Seed Audio.
+- Keep one chapter-level role-to-voice registry across every section and chunk.
+- Bind no more than three active voices in one Audio request, with no duplicate provider speaker id in that request.
+- Validate source coverage, complete spoken sentences, voice bindings, sound layers, and prompt budget before any Audio provider call.
+- Reserve 300 characters of the Audio prompt limit for a possible repair instruction.
+- Generate narration-heavy, dialogue-heavy, and action-heavy pilots before batch generation.
+- Require explicit human pilot approval. Do not infer approval from technical QA.
+- Allow one initial generation and at most one audio repair per chunk.
+- Route a second audible failure to `needs_replan`; do not repeat the same prompt.
+- ASR is off by default and is not part of normal delivery acceptance.
+- Preserve every source, plan, prompt, response, audio revision, report, event, and state transition.
+- Never package `.env`, generated runs, provider URLs, or credentials.
 
-## Primary Workflow
+## Final Workflow
 
-1. Clean the source and split it into semantic sections at paragraph and scene boundaries.
-2. Infer or load one stable chapter-level role-to-voice registry.
-3. Within each section, split by dramatic action and the maximum three active voices per request.
-4. Use Seed 2.0 Pro to create chronological sound-director prompts containing narration, dialogue, ambience, music, and source-derived SFX.
-5. Generate each chunk with Seed Audio, retaining successful existing chunks on resume.
-6. Apply core media validation and balanced performance review.
-7. Archive the previous audio and QA checkpoint before regenerating only a failed chunk.
-8. Stitch accepted chunks into sections, then accepted sections into the full chapter.
+```text
+source text
+  -> semantic sections
+  -> chapter voice registry
+  -> dramatic chunks
+  -> Seed 2 Pro director rewrite
+  -> static Audio input gate
+  -> three representative pilot chunks
+  -> human pilot approval
+  -> chunk-level batch generation
+  -> technical and performance review
+  -> accepted OR needs_replan
+  -> section stitching
+  -> chapter stitching
+```
 
-Read [references/run-state.md](references/run-state.md) for state semantics and [references/quality-profiles.md](references/quality-profiles.md) before changing gates.
+Each chunk follows this state path:
+
+```text
+planned -> rewritten -> input_validated -> generating -> accepted
+                                                  \-> needs_replan
+```
+
+Read [references/final-workflow.md](references/final-workflow.md), [references/run-state.md](references/run-state.md), and [references/quality-profiles.md](references/quality-profiles.md) before changing the workflow.
 
 ## Commands
 
-Start or continue a run. If the `run-id` exists, this command loads its existing state:
+Start a new run. This prepares every section, applies the static input gate, generates three pilots, then stops for approval:
 
 ```bash
-python3 scripts/resumable_audio_drama.py run \
+python3 scripts/audio_drama_skill.py run \
   --source-file path/to/chapter.txt \
   --source-title "Chapter title" \
   --run-id chapter_run_001
 ```
 
-Inspect progress without calling any provider:
+Use a reviewed chapter-wide voice registry:
 
 ```bash
-python3 scripts/resumable_audio_drama.py status --run-id chapter_run_001
+python3 scripts/audio_drama_skill.py run \
+  --source-file path/to/chapter.txt \
+  --voice-registry path/to/voice_registry.json \
+  --run-id chapter_run_001
 ```
 
-Continue after interruption or a repaired configuration:
+Prepare and validate all director inputs without generating audio:
 
 ```bash
-python3 scripts/resumable_audio_drama.py resume --run-id chapter_run_001
-```
-
-Prepare all director artifacts without generating Seed Audio:
-
-```bash
-python3 scripts/resumable_audio_drama.py run \
+python3 scripts/audio_drama_skill.py run \
   --source-file path/to/chapter.txt \
   --run-id chapter_prepare_001 \
   --prepare-only
 ```
 
-Use an approved fixed voice registry instead of inferring one:
+Inspect progress without calling a provider:
 
 ```bash
-python3 scripts/resumable_audio_drama.py run \
-  --source-file path/to/chapter.txt \
-  --voice-registry path/to/voice_registry.json \
-  --run-id chapter_fixed_voices_001
+python3 scripts/audio_drama_skill.py status --run-id chapter_run_001
 ```
 
-Run ASR only when transcript evidence is explicitly needed:
+After listening to all selected pilot files, explicitly approve them:
 
 ```bash
-python3 scripts/resumable_audio_drama.py run \
-  --source-file path/to/chapter.txt \
-  --run-id chapter_asr_diagnostic_001 \
-  --asr-mode diagnostic
+python3 scripts/audio_drama_skill.py approve-pilot --run-id chapter_run_001
 ```
 
-## Resume Decisions
-
-- `accepted`: skip it.
-- `prepared`: reuse its rewrite artifacts and begin generation.
-- `running` or `interrupted`: reuse its manifest and completed audio chunks.
-- `needs_review`: preserve the previous QA checkpoint, then retry only gated chunks.
-- `failed`: keep the error and intermediate files; resume after the concrete cause is fixed.
-
-The default permits at most two section-level review cycles. When that limit is reached, the state changes to `human_review_required` without another provider call.
-
-After listening to the retained audio and reports, explicitly authorize one more paid cycle only when justified:
+Continue batch generation after approval or process interruption:
 
 ```bash
-python3 scripts/resumable_audio_drama.py resume \
+python3 scripts/audio_drama_skill.py resume --run-id chapter_run_001
+```
+
+When a failed chunk requires new boundaries or a new director plan, archive and replan its complete section:
+
+```bash
+python3 scripts/audio_drama_skill.py replan \
   --run-id chapter_run_001 \
-  --allow-extra-review-cycle
+  --section-id section_003
 ```
 
-Do not infer completion from the presence of WAV files alone. `run_state.json` is the chapter-level source of truth; each section manifest and QA report is the lower-level evidence.
+Replanning preserves the previous section under `history/replan/`, clears its invalid active chunk states, and requires new pilot approval before batch generation resumes.
 
-## Default Acceptance
+Repair stale state after an uncatchable process exit without calling any provider:
 
-A section is accepted when:
+```bash
+python3 scripts/audio_drama_skill.py reconcile --run-id chapter_run_001
+```
 
-- the final audio exists and decodes;
-- no output chunk is missing or effectively empty;
-- balanced review finds no major rushed delivery, clipped ending, hard cut, voice masking, mechanical narration, or overlapping voices;
-- ASR passes only when `--asr-mode required` was explicitly selected.
+## Stop Conditions
 
-Minor stylistic observations stay in reports and do not trigger regeneration. Reviewer unavailability does not delete generated audio; in balanced mode it remains reviewable instead of causing an automatic retry loop.
+Stop before audio generation when:
 
-## Outputs
+- source units are missing, duplicated, or reordered;
+- a spoken Narrator line is incomplete or ends on a dangling word;
+- narrator-only source coverage is too sparse;
+- the base prompt exceeds the repair-reserve budget;
+- active voices exceed three or share one provider speaker id;
+- language, continuity, voice serialization, ambience, music, or sound-design markers are missing.
 
-Runs are stored under `outputs/skill_runs/<run-id>/`:
+Stop batch generation when:
 
-- `run_state.json`: resumable chapter state
-- `events.jsonl`: append-only progress history
+- pilots have not been approved;
+- a chunk fails decoding or is effectively empty;
+- balanced listening review finds a major rushed delivery, clipped ending, hard cut, masked voice, mechanical narration, or overlapping voices;
+- the same chunk still fails after its one permitted repair.
+
+The last case becomes `needs_replan`. Replanning may shorten narration, reduce simultaneous sound instructions, change a chunk boundary, or split the dramatic window. It must not blindly append another repair sentence.
+
+## State And Artifacts
+
+Runs live under `outputs/skill_runs/<run-id>/`:
+
+- `run_state.json`: authoritative schema-2 workflow state
+- `run_lease.json`: active process lease and heartbeat
+- `events.jsonl`: append-only transition history
 - `source.txt`, `preprocessing_report.json`, `voice_registry.json`
-- `inputs/section_*/`: immutable section source and story config
-- `sections/section_*/`: source units, director prompts, generation requests, audio chunks, stitched section, and QA reports
-- `history/`: interrupted rewrites and pre-retry QA checkpoints
-- `sections/section_*/07_audio_revisions/`: replaced audio generations
-- `stitched/<run-id>_full.wav`: completed chapter audio
+- `inputs/section_*/`: immutable section source and story configuration
+- `sections/section_*/02_source_units.json`: traceable source units
+- `sections/section_*/05_director_prompt_chunks/`: exact Audio inputs
+- `sections/section_*/06_generation_requests/`: voice bindings and generation metadata
+- `sections/section_*/logs/pre_generation_input_gate.json`: provider-call admission decision
+- `sections/section_*/logs/chunk_delivery/`: per-chunk technical and performance decisions
+- `sections/section_*/07_audio_revisions/`: replaced generations
+- `stitched/<run-id>_full.wav`: accepted final chapter audio
+
+Do not infer state from WAV presence. `run_state.json` plus per-chunk reports determine whether audio may be stitched.
 
 ## Verification
 
-Before packaging or publishing this skill, run:
+Run before packaging or publishing:
 
 ```bash
 PYTHONPYCACHEPREFIX=/tmp/seed-audio-pyc python3 -m py_compile scripts/*.py
 PYTHONPYCACHEPREFIX=/tmp/seed-audio-pyc python3 -m unittest discover -s tests -v
+python3 /Users/bytedance/Documents/project/skill_test/codex-workflows/skills/skill-workflow-regression/scripts/run_skill_workflow_cases.py tests/workflow_cases.json
 ```
 
-Report the run id, current state, accepted section count, section needing attention, final audio path if complete, and the exact gate responsible for any stop.
+Report the run id, workflow phase, accepted and failed chunk counts, pilot approval state, current item, exact stop gate, and final audio path when complete.

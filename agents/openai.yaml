@@ -1,4 +1,4 @@
 interface:
-  display_name: "Resumable Seed Audio Drama"
-  short_description: "Resume long-form fiction audio drama generation safely"
-  default_prompt: "Use $seed-audiobook-generator to plan, generate, inspect, or resume a long-form Seed Audio drama while preserving intermediate artifacts."
+  display_name: "Seed Audio Drama Generator"
+  short_description: "Build resumable long-form audio dramas with pilot approval"
+  default_prompt: "Use $seed-audiobook-generator to plan, validate, pilot, approve, generate, replan, resume, or inspect a long-form Seed Audio drama while preserving every artifact."

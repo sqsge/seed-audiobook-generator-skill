@@ -188,6 +188,38 @@ class ResumeStateTests(unittest.TestCase):
             self.assertEqual(code, 1)
             run_mock.assert_called_once()
 
+    def test_partial_section_uses_partial_resume_entrypoint(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as temp_dir:
+            run_dir = Path(temp_dir)
+            state = self.base_state()
+            section_dir = run_dir / "sections/section_001"
+            section_dir.mkdir(parents=True)
+            completed = type("Completed", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+            with patch.object(resumable_audio_drama.subprocess, "run", return_value=completed) as run_mock:
+                code = resumable_audio_drama.run_sections(run_dir, state, generate=False)
+            self.assertEqual(code, 0)
+            command = run_mock.call_args.args[0]
+            self.assertIn("--resume-partial-run-id", command)
+            self.assertNotIn("--run-id", command)
+
+    def test_explicit_prompt_rebuild_uses_cached_partial_entrypoint_first(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as temp_dir:
+            run_dir = Path(temp_dir)
+            state = self.base_state()
+            state["sections"][0]["status"] = "needs_review"
+            failed = type("Completed", (), {"returncode": 1, "stdout": "", "stderr": "rebuild test stop"})()
+            with patch.object(resumable_audio_drama.subprocess, "run", return_value=failed) as run_mock:
+                code = resumable_audio_drama.run_sections(
+                    run_dir,
+                    state,
+                    generate=True,
+                    rebuild_director_prompts=True,
+                )
+            self.assertEqual(code, 1)
+            command = run_mock.call_args.args[0]
+            self.assertIn("--resume-partial-run-id", command)
+            self.assertNotIn("--generate", command)
+
 
 if __name__ == "__main__":
     unittest.main()

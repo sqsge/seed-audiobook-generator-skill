@@ -6,6 +6,8 @@ The workflow separates generation validity from optional diagnostics and deliver
 
 Always enabled. It blocks only unusable output such as missing, undecodable, or effectively empty audio. Prompt-shape and duration heuristics remain diagnostic evidence rather than automatic reasons to spend another generation.
 
+The separate pre-generation input gate runs before this stage. It can block provider calls for incomplete narration, missing source coverage, voice conflicts, or prompt-budget violations.
+
 ## Performance Review
 
 - `balanced` (default): blocks only major rushed pacing, clipped endings, hard cuts, masked voices, mechanical narration, or overlapping voices. Minor observations are retained without retry.
@@ -23,6 +25,6 @@ ASR is not a reliable judge of music, ambience, SFX, voice naturalness, or bound
 
 ## Retry Policy
 
-Retry only chunk ids selected by an enabled gate. Keep the previous generation and report. If the reviewer is unavailable in balanced or diagnostic mode, preserve the audio for listening and continue without provider-driven regeneration.
+Retry only a chunk id selected by an enabled gate. Keep the previous generation and report. One targeted repair is allowed. If the repaired audio still fails a major audible gate, mark the chunk `needs_replan` instead of generating it again.
 
-The chapter runner defaults to two section-level review cycles. Reaching the limit requires inspection of the retained artifacts before any additional paid generation.
+If the reviewer is unavailable in balanced or diagnostic mode, preserve the audio for listening without a provider-driven retry. Representative pilot chunks still require explicit human approval before batch generation.

@@ -1,0 +1,57 @@
+{
+  "cases": [
+    {
+      "name": "stale running state reconciles after process exit",
+      "cwd": "/Users/bytedance/Documents/project/audio_book/seed-audiobook-generator-skill-package-qa",
+      "steps": [
+        {
+          "name": "build stale state fixture",
+          "cmd": ["python3", "tests/build_workflow_regression_fixtures.py", "stale-state"],
+          "expect_exit": 0
+        },
+        {
+          "name": "reconcile without provider call",
+          "cmd": ["python3", "scripts/audio_drama_skill.py", "reconcile", "--run-id", "regression_stale_state"],
+          "expect_exit": 0,
+          "expect_stdout_contains": ["interrupted"],
+          "json_expect": [
+            {
+              "path": "outputs/skill_runs/regression_stale_state/run_state.json",
+              "pointer": "/status",
+              "equals": "interrupted"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "incomplete narration is blocked before provider generation",
+      "cwd": "/Users/bytedance/Documents/project/audio_book/seed-audiobook-generator-skill-package-qa",
+      "steps": [
+        {
+          "name": "build invalid input fixture",
+          "cmd": ["python3", "tests/build_workflow_regression_fixtures.py", "bad-input"],
+          "expect_exit": 0
+        },
+        {
+          "name": "run static input gate",
+          "cmd": ["python3", "scripts/workflow_input_gate.py", "--section-dir", "outputs/workflow_regression/bad_input"],
+          "expect_exit": 3,
+          "expect_stdout_contains": ["incomplete_narrator_line", "provider_calls_allowed_on_fail"],
+          "json_expect": [
+            {
+              "path": "outputs/workflow_regression/bad_input/logs/pre_generation_input_gate.json",
+              "pointer": "/status",
+              "equals": "fail"
+            },
+            {
+              "path": "outputs/workflow_regression/bad_input/logs/pre_generation_input_gate.json",
+              "pointer": "/policy/provider_calls_allowed_on_fail",
+              "equals": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

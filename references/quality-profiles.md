@@ -25,6 +25,10 @@ ASR is not a reliable judge of music, ambience, SFX, voice naturalness, or bound
 
 ## Retry Policy
 
-Retry only a chunk id selected by an enabled gate. Keep the previous generation and report. One targeted repair is allowed. If the repaired audio still fails a major audible gate, mark the chunk `needs_replan` instead of generating it again.
+Retry only a chunk id selected by an enabled gate. Keep the previous generation and report. One targeted repair is allowed. If a pilot repair still fails a major audible gate, archive its section and let Seed 2 Pro create one materially revised plan from the QA evidence. If the new pilot also fails, mark it `needs_replan` instead of generating it again.
 
 If the reviewer is unavailable in balanced or diagnostic mode, preserve the audio for listening without a provider-driven retry. Representative pilot chunks still require explicit human approval before batch generation.
+
+Preventive input quality follows the official natural-language prompt guide rather than fixed engineering quotas. A valid request describes music, characters, dialogue and motivated effects in chronological prose while preserving source meaning and reference bindings.
+
+In balanced Pilot review, missing scene-required background music, ambience or action SFX remains a major audible failure. Any hard boundary is also blocking, but the repair instruction should remain natural rather than append a canned technical coda.

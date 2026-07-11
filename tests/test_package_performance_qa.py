@@ -126,9 +126,25 @@ class PackagePerformanceQaTests(unittest.TestCase):
         with patch.object(audiobook_workflow, "STORY_CONFIG", config):
             prompt = audiobook_workflow.compact_locked_rewrite_prompt(units)
         self.assertLess(len(prompt), 7000)
-        self.assertIn("one voice at a time", prompt)
+        self.assertIn("stage-one analysis", prompt)
+        self.assertIn("builds each Audio 1.0 prompt separately", prompt)
+        self.assertNotIn('"final_audio_prompt":""', prompt)
+        self.assertNotIn("Voice continuity:", prompt)
         self.assertIn("continuous scene-specific score", prompt)
         self.assertIn("Never place two active roles with the same provider speaker", prompt)
+
+    def test_dynamic_role_prompt_uses_compact_stage_one_contract(self):
+        config = {"auto_planning": True}
+        units = [
+            {"source_unit_id": "s0001", "source_kind": "narrative_text", "source_text": "The door opened."},
+            {"source_unit_id": "s0002", "source_kind": "quoted_text", "source_text": "Run!"},
+        ]
+        with patch.object(audiobook_workflow, "STORY_CONFIG", config):
+            prompt = audiobook_workflow.compact_rewrite_prompt(units)
+        self.assertLess(len(prompt), 6000)
+        self.assertIn("stage-one analysis", prompt)
+        self.assertIn("builds each Audio 1.0 prompt separately", prompt)
+        self.assertNotIn('"final_audio_prompt":""', prompt)
 
     def test_rewrite_wall_timeout_is_total_deadline(self):
         started = time.monotonic()
@@ -166,7 +182,7 @@ class PackagePerformanceQaTests(unittest.TestCase):
         )
         self.assertEqual(bridge, "Terrified students huddled against the walls, covering their faces.")
 
-    def test_official_fallback_keeps_four_narrator_bridges(self):
+    def test_official_fallback_caps_narrator_bridges_at_three(self):
         parsed = {
             f"s000{index}": {
                 "speaker": "Narrator",
@@ -193,7 +209,9 @@ class PackagePerformanceQaTests(unittest.TestCase):
             1,
             2,
         )
-        self.assertEqual(prompt.count("Narrator (actor is <<TGT_SPK1>>"), 4)
+        narrator_lines = prompt.count("Narrator (")
+        self.assertGreaterEqual(narrator_lines, 1)
+        self.assertLessEqual(narrator_lines, 3)
         self.assertNotIn("against the\"", prompt)
 
     def test_repair_prompt_fits_limit_without_removing_spoken_lines(self):
@@ -232,6 +250,69 @@ class PackagePerformanceQaTests(unittest.TestCase):
         fitted = audiobook_workflow.fit_base_prompt_budget(base)
         self.assertLessEqual(len(fitted), audiobook_workflow.BASE_PROMPT_BUDGET)
         self.assertIn(spoken, fitted)
+
+    def test_complete_narrator_quotes_adds_sentence_closure(self):
+        prompt = 'Narrator (actor is <<TGT_SPK1>>, tense): "Harry slips on wet stone"'
+        completed = audiobook_workflow.complete_narrator_quotes(prompt)
+        self.assertIn('"Harry slips on wet stone."', completed)
+
+    def test_adjacent_context_does_not_overwrite_specific_planner_speaker(self):
+        parsed = [
+            {"source_unit_id": "s1", "source_kind": "narrative_text", "source_text": "Harry fell backward."},
+            {
+                "source_unit_id": "s2",
+                "source_kind": "quoted_text",
+                "source_text": "Petrificus Totalus!",
+                "speaker": "Ginny Weasley",
+                "speaker_evidence": "rescue spell caster",
+            },
+            {"source_unit_id": "s3", "source_kind": "narrative_text", "source_text": "Harry pushed the attacker away."},
+        ]
+        repaired = audiobook_workflow.repair_quoted_speakers(parsed)
+        self.assertEqual(repaired[1]["speaker"], "Ginny Weasley")
+
+    def test_dialogue_attribution_is_not_a_narration_bridge(self):
+        self.assertTrue(audiobook_workflow.is_dialogue_attribution_text("yelled Harry."))
+        self.assertTrue(audiobook_workflow.is_dialogue_attribution_text("Harry yelled."))
+        self.assertFalse(audiobook_workflow.is_dialogue_attribution_text("Harry ran into the corridor."))
+
+    def test_request_capacity_rejects_distinct_roles_sharing_one_speaker(self):
+        roles = list(audiobook_workflow.ROLE_SPECS)[:2]
+        parsed = {
+            "s1": {"speaker": roles[0]},
+            "s2": {"speaker": roles[1]},
+        }
+        with patch.object(audiobook_workflow, "configured_speaker", return_value="shared-speaker"):
+            with patch.object(audiobook_workflow, "reference_mode", return_value="speaker"):
+                self.assertFalse(audiobook_workflow.request_voice_capacity_ok(["s1", "s2"], parsed))
+
+    def test_active_roles_drop_planned_role_that_does_not_speak(self):
+        roles = list(audiobook_workflow.ROLE_SPECS)
+        self.assertGreaterEqual(len(roles), 3)
+        parsed = {
+            "s1": {"speaker": roles[0]},
+            "s2": {"speaker": roles[1]},
+        }
+        chunk = {
+            "source_unit_ids": ["s1", "s2"],
+            "active_roles": [roles[0], roles[1], roles[2]],
+        }
+        self.assertEqual(audiobook_workflow.active_roles_for_chunk(chunk, parsed), roles[:2])
+
+    def test_dialogue_opening_chunk_inherits_preceding_narrative_unit(self):
+        role = next(name for name in audiobook_workflow.ROLE_SPECS if name != "Narrator")
+        parsed = {
+            "s1": {"source_unit_id": "s1", "speaker": "Narrator", "source_text": "The corridor narrowed."},
+            "s2": {"source_unit_id": "s2", "speaker": "Narrator", "source_text": "A figure raised a wand."},
+            "s3": {"source_unit_id": "s3", "speaker": role, "source_text": "Stop!", "source_kind": "quoted_text"},
+        }
+        plans = [
+            {"chunk_id": "chunk_001", "source_unit_ids": ["s1", "s2"]},
+            {"chunk_id": "chunk_002", "source_unit_ids": ["s3"]},
+        ]
+        shifted = audiobook_workflow.shift_narrative_setup_to_dialogue_openers(plans, parsed)
+        self.assertEqual(shifted[0]["source_unit_ids"], ["s1"])
+        self.assertEqual(shifted[1]["source_unit_ids"], ["s2", "s3"])
 
 
 if __name__ == "__main__":

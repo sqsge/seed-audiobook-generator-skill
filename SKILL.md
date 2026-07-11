@@ -14,11 +14,15 @@ Use this skill for a complete fiction chapter or long scene that should become a
 - Keep one chapter-level role-to-voice registry across every section and chunk.
 - Bind no more than three active voices in one Audio request, with no duplicate provider speaker id in that request.
 - Validate source coverage, complete spoken sentences, voice bindings, sound layers, and prompt budget before any Audio provider call.
-- Reserve 300 characters of the Audio prompt limit for a possible repair instruction.
-- Generate narration-heavy, dialogue-heavy, and action-heavy pilots before batch generation.
+- Follow the official Audio 1.0 prompt formula: music opening, natural first-appearance character description, quoted line, naturally timed sound effect, then the next story event.
+- Let Seed 2 Pro decide sound density from the material. Do not impose fixed SFX counts, fixed narration counts, control-protocol headers, or canned coda wording.
+- Keep engineering validation limited to source coverage, complete spoken sentences, role references, provider limits, resumability, and artifact integrity.
+- Generate a soundscape-oriented pilot, a voice/dialogue pilot, and a combined action pilot before batch generation.
 - Require explicit human pilot approval. Do not infer approval from technical QA.
 - Allow one initial generation and at most one audio repair per chunk.
-- Route a second audible failure to `needs_replan`; do not repeat the same prompt.
+- Treat any missing required music, ambience, action SFX, or hard output boundary as a Pilot failure even when speech itself is intelligible.
+- During pilot production, route a second audible failure back to Seed 2 Pro for one automatic section replan; do not repeat the same prompt.
+- Stop for user action if the replanned pilot still fails. Never start full-chapter production before explicit pilot approval.
 - ASR is off by default and is not part of normal delivery acceptance.
 - Preserve every source, plan, prompt, response, audio revision, report, event, and state transition.
 - Never package `.env`, generated runs, provider URLs, or credentials.
@@ -33,7 +37,9 @@ source text
   -> Seed 2 Pro director rewrite
   -> static Audio input gate
   -> three representative pilot chunks
-  -> human pilot approval
+  -> automated review
+       -> failed: Seed 2 Pro replans the failed section once -> new pilots
+       -> passed: human pilot approval
   -> chunk-level batch generation
   -> technical and performance review
   -> accepted OR needs_replan
@@ -97,7 +103,7 @@ Continue batch generation after approval or process interruption:
 python3 scripts/audio_drama_skill.py resume --run-id chapter_run_001
 ```
 
-When a failed chunk requires new boundaries or a new director plan, archive and replan its complete section:
+Pilot failures automatically archive and replan their complete section once using the QA evidence. If that replanned pilot still fails, use the explicit command after reviewing the retained artifacts:
 
 ```bash
 python3 scripts/audio_drama_skill.py replan \
@@ -105,7 +111,7 @@ python3 scripts/audio_drama_skill.py replan \
   --section-id section_003
 ```
 
-Replanning preserves the previous section under `history/replan/`, clears its invalid active chunk states, and requires new pilot approval before batch generation resumes.
+Replanning preserves the previous section under `history/replan/`, writes the audible QA evidence into the section planning input, clears invalid active chunk states, and requires new pilot approval before batch generation resumes. Automatic replanning is limited to one attempt per section.
 
 Repair stale state after an uncatchable process exit without calling any provider:
 

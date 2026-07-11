@@ -10,6 +10,7 @@
 - `awaiting_pilot_approval`: representative pilot chunks passed automated checks and require listening approval.
 - `pilot_approved`: a human approved the selected pilots.
 - `needs_replan`: at least one input or rendered chunk must return to planning.
+- `auto_replan_pilot`: a failed pilot section is being replanned by Seed 2 Pro from retained QA evidence.
 - `blocked`: an executable or provider failed before a valid workflow decision.
 - `interrupted`: execution ended while all completed artifacts were retained.
 - `completed`: every chunk and section is accepted and the chapter is stitched.
@@ -23,7 +24,7 @@
 - `accepted`
 - `needs_replan`
 
-There is no unlimited retry state. One initial render and one repair are the maximum for one prompt. A second audible failure changes the chunk to `needs_replan`.
+There is no unlimited retry state. One initial render and one repair are the maximum for one prompt. During pilots, a second audible failure triggers one automatic section replan and a fresh pilot set. If the replanned pilot fails, the run changes to `needs_replan` and waits for user action.
 
 ## Lease And Recovery
 

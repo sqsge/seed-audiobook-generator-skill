@@ -47,7 +47,7 @@ def review_once(section_dir: Path, chunk_id: str, mode: str) -> dict:
     return workflow.performance_gate(report, mode)
 
 
-def generate_chunk(section_dir: Path, chunk_id: str, performance_mode: str) -> tuple[int, dict]:
+def generate_chunk(section_dir: Path, chunk_id: str, performance_mode: str, force: bool = False) -> tuple[int, dict]:
     request_path = section_dir / "06_generation_requests" / f"{chunk_id}.json"
     if not request_path.exists():
         payload = {"status": "failed", "reason": "missing_generation_request", "chunk_id": chunk_id}
@@ -55,7 +55,11 @@ def generate_chunk(section_dir: Path, chunk_id: str, performance_mode: str) -> t
         return 2, payload
 
     workflow.generate_reference_audio(section_dir)
-    workflow.generate_scene_audio(section_dir, only_chunk_ids={chunk_id})
+    workflow.generate_scene_audio(
+        section_dir,
+        force_chunk_ids={chunk_id} if force else None,
+        only_chunk_ids={chunk_id},
+    )
     technical = technical_gate(section_dir, chunk_id)
     if technical["status"] != "pass":
         payload = {"status": "failed", "reason": "technical_gate", "technical": technical}
@@ -93,10 +97,11 @@ def main() -> int:
     parser.add_argument("--story-config", required=True)
     parser.add_argument("--chunk-id", required=True)
     parser.add_argument("--performance-mode", choices=["off", "diagnostic", "balanced", "required"], default="balanced")
+    parser.add_argument("--force", action="store_true", help="Archive any existing chunk audio and generate a new render.")
     args = parser.parse_args()
     section_dir = Path(args.section_dir).expanduser().resolve()
     configure(section_dir, Path(args.story_config).expanduser().resolve())
-    code, payload = generate_chunk(section_dir, args.chunk_id, args.performance_mode)
+    code, payload = generate_chunk(section_dir, args.chunk_id, args.performance_mode, force=args.force)
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return code
 

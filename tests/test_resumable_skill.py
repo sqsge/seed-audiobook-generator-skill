@@ -20,7 +20,7 @@ class QualityProfileTests(unittest.TestCase):
         report = audiobook_workflow.asr_gate({"status": "fail"}, "off")
         self.assertEqual(report["gate_status"], "skipped")
 
-    def test_balanced_profile_ignores_minor_diagnostic_issue(self):
+    def test_balanced_profile_records_but_does_not_block_minor_hard_boundary(self):
         report = {
             "chunks": [
                 {
@@ -32,6 +32,7 @@ class QualityProfileTests(unittest.TestCase):
             "unavailable_chunk_ids": [],
         }
         gated = audiobook_workflow.performance_gate(report, "balanced")
+        self.assertEqual(gated["gate_failed_chunk_ids"], [])
         self.assertEqual(gated["gate_status"], "pass")
 
     def test_balanced_profile_blocks_major_hard_cut(self):

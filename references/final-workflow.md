@@ -26,8 +26,12 @@ After approval, generate one chunk at a time. Each chunk stores its own request,
 
 - Provider transport failure: retain state and resume the same stage.
 - Static input failure: `needs_replan`, with no Audio call.
+- Prompt generation follows the official natural chronological style. Music is described with style, instruments, rhythm and atmosphere; characters are described naturally on first appearance; sound effects are inserted where the story motivates them.
+- The static gate does not prescribe sound-effect counts or canned timeline phrases. Audible sound quality is evaluated through representative pilots and human listening.
 - First audible failure: one targeted audio repair.
-- Second audible failure: `needs_replan`, never a third render of the same prompt.
+- Second audible failure in a pilot: archive the section and ask Seed 2 Pro for one materially revised plan using the QA evidence, then generate new pilots.
+- Failure after that automatic replan: `needs_replan`; stop for user review and never render the same prompt a third time.
+- Full chapter generation begins only after the representative pilots pass automated review and receive explicit human approval.
 - Process interruption: `interrupted`, then resume from the current chunk.
 
 ## Assembly Layer

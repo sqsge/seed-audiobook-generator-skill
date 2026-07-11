@@ -9,6 +9,7 @@ from pathlib import Path
 
 
 BASE_PROMPT_BUDGET = int(os.getenv("SEED_AUDIO_BASE_PROMPT_BUDGET", "2700"))
+MAX_PROMPT_CHARS = int(os.getenv("SEED_AUDIO_MAX_CHARS", "3000"))
 
 
 def read_json(path: Path) -> dict | list:
@@ -64,8 +65,11 @@ def evaluate(section_dir: Path) -> dict:
         quotes = narrator_quotes(prompt)
         incomplete_quotes = [quote for quote in quotes if not quote_is_complete(quote)]
         failures: list[str] = []
-        if len(prompt) > BASE_PROMPT_BUDGET:
-            failures.append("base_prompt_exceeds_repair_reserve_budget")
+        warnings: list[str] = []
+        if len(prompt) > MAX_PROMPT_CHARS:
+            failures.append("prompt_exceeds_provider_limit")
+        elif len(prompt) > BASE_PROMPT_BUDGET:
+            warnings.append("reduced_repair_reserve")
         if len(active_roles) > 3:
             failures.append("more_than_three_active_roles")
         if conflicts:
@@ -74,24 +78,17 @@ def evaluate(section_dir: Path) -> dict:
             failures.append("active_role_missing_provider_speaker")
         if incomplete_quotes:
             failures.append("incomplete_narrator_line")
-        required_narration = min(4, int(metrics.get("narrator_unit_count", 0)))
+        required_narration = min(3, int(metrics.get("narrator_unit_count", 0)))
         if metrics.get("dialogue_unit_count", 0) == 0 and required_narration >= 3 and len(quotes) < required_narration:
             failures.append("insufficient_narration_coverage")
         if metrics.get("unbound_quoted_dialogue_line_count", 0) > 0:
             failures.append("unbound_quoted_dialogue")
         if metrics.get("must_keep_dialogue_count", 0) > metrics.get("must_keep_dialogue_present_count", 0):
             failures.append("missing_must_keep_dialogue")
-        for marker in (
-            "All audible speech must be English only. Do not translate or speak Chinese.",
-            "Voice continuity:",
-            "one voice at a time",
-            "no overlapping narration and dialogue",
-        ):
-            if marker not in prompt:
-                failures.append(f"missing_required_marker:{marker}")
+        if not re.search(r"\b(?:music|score|cello|strings|piano|drone|choir|orchestra)\b", prompt, re.I):
+            failures.append("missing_natural_music_description")
         expected = request.get("expected_duration_sec", {})
         ceiling = metrics.get("audio_drama_estimated_duration_ceiling_sec")
-        warnings: list[str] = []
         if ceiling and expected.get("max") and expected["max"] > ceiling * 1.8:
             warnings.append("declared_duration_is_inconsistent_with_playable_content")
         chunks.append(
@@ -117,7 +114,8 @@ def evaluate(section_dir: Path) -> dict:
         "failed_chunk_ids": failed_chunks,
         "policy": {
             "base_prompt_budget": BASE_PROMPT_BUDGET,
-            "repair_reserve_chars": 3000 - BASE_PROMPT_BUDGET,
+            "provider_prompt_limit": MAX_PROMPT_CHARS,
+            "repair_reserve_chars": MAX_PROMPT_CHARS - BASE_PROMPT_BUDGET,
             "provider_calls_allowed_on_fail": False,
         },
         "chunks": chunks,

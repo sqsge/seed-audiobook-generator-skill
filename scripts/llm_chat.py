@@ -57,7 +57,7 @@ def _resolve_model(explicit: str | None, base_url: str) -> str:
         return env_model
     if "openai.com" in base_url:
         return "gpt-4.1-mini"
-    return "seed-2-0-pro-260328"
+    return os.getenv("SEED_AUDIO_REWRITE_MODEL", "dola-seed-2-1-turbo-260628")
 
 
 def _media_url(path_or_url: str) -> str:
@@ -66,10 +66,10 @@ def _media_url(path_or_url: str) -> str:
     return _file_to_data_url(path_or_url)
 
 
-def _audio_input(path_or_url: str) -> dict:
-    """Build Ark's audio-content shape from a local file or a remote URL."""
+def _audio_content(path_or_url: str) -> dict:
+    """Build the OpenAI-compatible audio input block used by Seed multimodal chat."""
     if path_or_url.startswith(("http://", "https://")):
-        return {"type": "audio_url", "audio_url": {"url": path_or_url}}
+        return {"type": "input_audio", "input_audio": {"url": path_or_url}}
     path = Path(path_or_url)
     return {
         "type": "input_audio",
@@ -102,7 +102,7 @@ def _build_messages(
             video_url = _media_url(video)
             content.append({"type": "video_url", "video_url": {"url": video_url}})
         for audio in audios:
-            content.append(_audio_input(audio))
+            content.append(_audio_content(audio))
         content.append({"type": "text", "text": prompt})
         messages.append({"role": "user", "content": content})
     else:
@@ -148,7 +148,6 @@ def chat_text(
     api_key: str | None = None,
     temperature: float = 0.2,
     max_tokens: int | None = None,
-    audios: list[str] | None = None,
     timeout: int | None = None,
 ) -> str:
     """
@@ -159,7 +158,36 @@ def chat_text(
     resolved_model = _resolve_model(model, resolved_base_url)
     payload: dict = {
         "model": resolved_model,
-        "messages": _build_messages(prompt, system, [], audios=audios),
+        "messages": _build_messages(prompt, system, []),
+        "temperature": temperature,
+    }
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
+    result = _chat_completion(resolved_base_url, resolved_credential, payload, timeout=timeout)
+    return _extract_text(result).strip()
+
+
+def chat_audio(
+    prompt: str,
+    audio_paths: list[str],
+    *,
+    system: str | None = None,
+    model: str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    temperature: float = 0.1,
+    max_tokens: int | None = None,
+    timeout: int | None = None,
+) -> str:
+    """Ask a multimodal chat model to review one or more local audio files."""
+    if not audio_paths:
+        raise ValueError("chat_audio requires at least one audio path")
+    resolved_base_url = _resolve_base_url(base_url)
+    resolved_credential = _resolve_api_key(api_key)
+    resolved_model = _resolve_model(model, resolved_base_url)
+    payload: dict = {
+        "model": resolved_model,
+        "messages": _build_messages(prompt, system, [], audios=audio_paths),
         "temperature": temperature,
     }
     if max_tokens is not None:

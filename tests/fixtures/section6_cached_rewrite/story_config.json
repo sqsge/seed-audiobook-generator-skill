@@ -1,0 +1,1017 @@
+{
+  "scene_id": "ch02-r3-845edec1-cf67-469d-8fd1-3a7b9da5d206_section_006",
+  "production_mode": "audio_drama_adaptation",
+  "prompt_language": "en",
+  "auto_planning": true,
+  "lock_roles": true,
+  "source_title": "Chapter Two: The Vanishing Glass - section 006",
+  "source_url": "local:chapter_source_section",
+  "source_excerpt": "DUDLEY!\nMR. DURSLEY!\nCOME AND LOOK AT THIS SNAKE!\nYOU WON'T BELIEVE WHAT IT'S DOING!\nDudley came waddling toward them as fast as he could.\nOut of the way, you,\nhe said, punching Harry in the ribs.\nCaught by surprise, Harry fell hard on the concrete floor.\nWhat came next happened so fast no one saw how it happened -- one second, Piers and Dudley were leaning right up close to the glass, the next, they had leapt back with howls of horror.\nHarry sat up and gasped; the glass front of the boa constrictor's tank had vanished.\nThe great snake was uncoiling itself rapidly, slithering out onto the floor.\nPeople throughout the reptile house screamed and started running for the exits.\nAs the snake slid swiftly past him, Harry could have sworn a low, hissing voice said,\nBrazil, here I come...Thanksss, amigo.\nThe keeper of the reptile house was in shock.\nBut the glass,\nhe kept saying,\nwhere did the glass go?\nThe zoo director himself made Aunt Petunia a cup of strong, sweet tea while he apologized over and over again.\nPiers and Dudley could only gibber.",
+  "roles": {
+    "Narrator": {
+      "key": "narrator",
+      "label": "Narrator",
+      "reference_mode": "speaker",
+      "default_speaker": "en_female_authoritative-british_uranus_bigtts",
+      "description": "Omniscient chapter narrator guiding the plot of Chapter Two: The Vanishing Glass, setting all scenes and framing character actions",
+      "attribution_keywords": [
+        "chapter opening",
+        "descriptive prose",
+        "scene lead-in"
+      ],
+      "reference_prompt": "All non-dialogue descriptive text that advances the story, explains setting, and contextualizes character actions for the audio drama audience"
+    },
+    "aunt_petunia": {
+      "key": "aunt_petunia",
+      "label": "Aunt Petunia Dursley",
+      "reference_mode": "speaker",
+      "default_speaker": "en_female_sharron_uranus_bigtts",
+      "description": "Harry's harsh, shrill-voiced aunt, matriarch of the Dursley household, obsessively doting on her son Dudley and hostile to anything unusual, including Harry",
+      "attribution_keywords": [
+        "Aunt Petunia",
+        "Petunia",
+        "she screeched",
+        "she demanded",
+        "she snapped",
+        "she said",
+        "she snarled"
+      ],
+      "reference_prompt": "Spoken dialogue of Aunt Petunia, delivered in a sharp, shrill tone that softens only when interacting with Dudley, and remains sharp and angry when addressing Harry or unusual events"
+    },
+    "harry_potter": {
+      "key": "harry_potter",
+      "label": "Harry Potter",
+      "reference_mode": "speaker",
+      "default_speaker": "en_male_josh_uranus_bigtts",
+      "description": "10-year-old orphaned protagonist, abused and neglected by the Dursleys, who unknowingly causes strange events to occur around him",
+      "attribution_keywords": [
+        "Harry",
+        "said Harry",
+        "Harry murmured",
+        "Harry put in",
+        "Harry groaned"
+      ],
+      "reference_prompt": "Spoken dialogue of 10-year-old Harry Potter, soft-spoken, earnest, often quiet and defensive around the Dursleys, with a quiet curious warmth when interacting with the boa constrictor"
+    },
+    "uncle_vernon": {
+      "key": "uncle_vernon",
+      "label": "Uncle Vernon Dursley",
+      "reference_mode": "speaker",
+      "default_speaker": "en_male_deep-voice_uranus_bigtts",
+      "description": "Harry's gruff, large uncle, patriarch of the Dursley household, fiercely committed to normalcy and openly hostile to Harry and any odd events",
+      "attribution_keywords": [
+        "Uncle Vernon",
+        "Vernon",
+        "he barked",
+        "he yelled",
+        "he said",
+        "he suggested",
+        "he snapped"
+      ],
+      "reference_prompt": "Spoken dialogue of Uncle Vernon Dursley, delivered in a deep, loud, gruff tone that grows angrier when discussing Harry or anything that deviates from his idea of ordinary life"
+    },
+    "dudley_dursley": {
+      "key": "dudley_dursley",
+      "label": "Dudley Dursley",
+      "reference_mode": "speaker",
+      "default_speaker": "en_male_excited-male-voice_uranus_bigtts",
+      "description": "Spoiled, entitled 10-year-old Dursley son, who bullies Harry and throws tantrums when he does not get everything he wants",
+      "attribution_keywords": [
+        "Dudley",
+        "he whined",
+        "he ordered",
+        "he moaned",
+        "he yelled",
+        "said Dudley",
+        "he wailed"
+      ],
+      "reference_prompt": "Spoken dialogue of spoiled Dudley Dursley, whiny, loud, and entitled, with dramatic fake sobs when throwing tantrums, and a cruel sneer when bullying Harry"
+    },
+    "piers_polkiss": {
+      "key": "piers_polkiss",
+      "label": "Piers Polkiss",
+      "reference_mode": "speaker",
+      "default_speaker": "en_male_ronald_uranus_bigtts",
+      "description": "Dudley's scrawny, cruel best friend, who helps Dudley bully Harry and joins the Dursleys for the zoo trip",
+      "attribution_keywords": [
+        "Piers",
+        "said Piers",
+        "Piers swore",
+        "he sniggered"
+      ],
+      "reference_prompt": "Spoken dialogue of Piers Polkiss, snarky, scrawny, and complicit in Dudley's bullying, with a nervous, sniveling tone when recounting the boa's escape"
+    },
+    "boa_constrictor": {
+      "key": "boa_constrictor",
+      "label": "Boa Constrictor",
+      "reference_mode": "speaker",
+      "default_speaker": "en_male_hades_uranus_bigtts",
+      "description": "The sentient, captive boa constrictor from the zoo's reptile house that communicates with Harry and escapes when its tank glass vanishes",
+      "attribution_keywords": [
+        "the snake said",
+        "the boa constrictor said",
+        "it winked",
+        "it nodded"
+      ],
+      "reference_prompt": "Spoken dialogue of the sentient boa, delivered in a slow, hissing, low tone, grateful to Harry for freeing it, and weary of the rude zoo visitors"
+    },
+    "reptile_keeper": {
+      "key": "reptile_keeper",
+      "label": "Reptile House Keeper",
+      "reference_mode": "speaker",
+      "default_speaker": "en_male_david_uranus_bigtts",
+      "description": "Shocked zoo employee who manages the reptile house, left bewildered by the vanishing tank glass and escaped boa",
+      "attribution_keywords": [
+        "the keeper said",
+        "he kept saying"
+      ],
+      "reference_prompt": "Spoken dialogue of the confused, shocked reptile house keeper, delivered in a stunned, disbelieving tone as he processes the impossible event"
+    }
+  },
+  "original_source_units": [
+    {
+      "source_unit_id": "s0001",
+      "source_order": 1,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Uncle Vernon rapped the glass smartly with his knuckles, but the snake just snoozed on.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 0,
+        "char_end": 87
+      }
+    },
+    {
+      "source_unit_id": "s0002",
+      "source_order": 2,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q01",
+      "source_text": "This is boring,",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 89,
+        "char_end": 104
+      }
+    },
+    {
+      "source_unit_id": "s0003",
+      "source_order": 3,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Dudley moaned.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 106,
+        "char_end": 120
+      }
+    },
+    {
+      "source_unit_id": "s0004",
+      "source_order": 4,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "He shuffled away.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 121,
+        "char_end": 138
+      }
+    },
+    {
+      "source_unit_id": "s0005",
+      "source_order": 5,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Harry moved in front of the tank and looked intently at the snake.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 139,
+        "char_end": 205
+      }
+    },
+    {
+      "source_unit_id": "s0006",
+      "source_order": 6,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "He wouldn't have been surprised if it had died of boredom itself -- no company except stupid people drumming their fingers on the glass trying to disturb it all day long.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 206,
+        "char_end": 376
+      }
+    },
+    {
+      "source_unit_id": "s0007",
+      "source_order": 7,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "It was worse than having a cupboard as a bedroom, where the only visitor was Aunt Petunia hammering on the door to wake you up; at least he got to visit the rest of the house.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 377,
+        "char_end": 552
+      }
+    },
+    {
+      "source_unit_id": "s0008",
+      "source_order": 8,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "The snake suddenly opened its beady eyes.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 553,
+        "char_end": 594
+      }
+    },
+    {
+      "source_unit_id": "s0009",
+      "source_order": 9,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Slowly, very slowly, it raised its head until its eyes were on a level with Harry's.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 595,
+        "char_end": 679
+      }
+    },
+    {
+      "source_unit_id": "s0010",
+      "source_order": 10,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "It winked.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 680,
+        "char_end": 690
+      }
+    },
+    {
+      "source_unit_id": "s0011",
+      "source_order": 11,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Harry stared.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 691,
+        "char_end": 704
+      }
+    },
+    {
+      "source_unit_id": "s0012",
+      "source_order": 12,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Then he looked quickly around to see if anyone was watching.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 705,
+        "char_end": 765
+      }
+    },
+    {
+      "source_unit_id": "s0013",
+      "source_order": 13,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "They weren't.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 766,
+        "char_end": 779
+      }
+    },
+    {
+      "source_unit_id": "s0014",
+      "source_order": 14,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "He looked back at the snake and winked, too.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 780,
+        "char_end": 824
+      }
+    },
+    {
+      "source_unit_id": "s0015",
+      "source_order": 15,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "The snake jerked its head toward Uncle Vernon and Dudley, then raised its eyes to the ceiling.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 825,
+        "char_end": 919
+      }
+    },
+    {
+      "source_unit_id": "s0016",
+      "source_order": 16,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "It gave Harry a look that said quite plainly:\n\"I get that all the time.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 920,
+        "char_end": 991
+      }
+    },
+    {
+      "source_unit_id": "s0017",
+      "source_order": 17,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q02",
+      "source_text": "I know,",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 993,
+        "char_end": 1000
+      }
+    },
+    {
+      "source_unit_id": "s0018",
+      "source_order": 18,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Harry murmured through the glass, though he wasn't sure the snake could hear him.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1002,
+        "char_end": 1083
+      }
+    },
+    {
+      "source_unit_id": "s0019",
+      "source_order": 19,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q03",
+      "source_text": "It must be really annoying.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1085,
+        "char_end": 1112
+      }
+    },
+    {
+      "source_unit_id": "s0020",
+      "source_order": 20,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "The snake nodded vigorously.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1114,
+        "char_end": 1142
+      }
+    },
+    {
+      "source_unit_id": "s0021",
+      "source_order": 21,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q04",
+      "source_text": "Where do you come from, anyway?",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1144,
+        "char_end": 1175
+      }
+    },
+    {
+      "source_unit_id": "s0022",
+      "source_order": 22,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Harry asked.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1177,
+        "char_end": 1189
+      }
+    },
+    {
+      "source_unit_id": "s0023",
+      "source_order": 23,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "The snake jabbed its tail at a little sign next to the glass.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1190,
+        "char_end": 1251
+      }
+    },
+    {
+      "source_unit_id": "s0024",
+      "source_order": 24,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Harry peered at it.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1252,
+        "char_end": 1271
+      }
+    },
+    {
+      "source_unit_id": "s0025",
+      "source_order": 25,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Boa Constrictor, Brazil.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1272,
+        "char_end": 1296
+      }
+    },
+    {
+      "source_unit_id": "s0026",
+      "source_order": 26,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q05",
+      "source_text": "Was it nice there?",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1298,
+        "char_end": 1316
+      }
+    },
+    {
+      "source_unit_id": "s0027",
+      "source_order": 27,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "The boa constrictor jabbed its tail at the sign again and Harry read on: This specimen was bred in the zoo.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1318,
+        "char_end": 1425
+      }
+    },
+    {
+      "source_unit_id": "s0028",
+      "source_order": 28,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q06",
+      "source_text": "Oh, I see -- so you've never been to Brazil?",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1427,
+        "char_end": 1471
+      }
+    },
+    {
+      "source_unit_id": "s0029",
+      "source_order": 29,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "As the snake shook its head, a deafening shout behind Harry made both of them jump.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1473,
+        "char_end": 1556
+      }
+    },
+    {
+      "source_unit_id": "s0030",
+      "source_order": 30,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q07",
+      "source_text": "DUDLEY!",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1558,
+        "char_end": 1565
+      }
+    },
+    {
+      "source_unit_id": "s0031",
+      "source_order": 31,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q07",
+      "source_text": "MR. DURSLEY!",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1566,
+        "char_end": 1578
+      }
+    },
+    {
+      "source_unit_id": "s0032",
+      "source_order": 32,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q07",
+      "source_text": "COME AND LOOK AT THIS SNAKE!",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1579,
+        "char_end": 1607
+      }
+    },
+    {
+      "source_unit_id": "s0033",
+      "source_order": 33,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q07",
+      "source_text": "YOU WON'T BELIEVE WHAT IT'S DOING!",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1608,
+        "char_end": 1642
+      }
+    },
+    {
+      "source_unit_id": "s0034",
+      "source_order": 34,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Dudley came waddling toward them as fast as he could.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1644,
+        "char_end": 1697
+      }
+    },
+    {
+      "source_unit_id": "s0035",
+      "source_order": 35,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q08",
+      "source_text": "Out of the way, you,",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1699,
+        "char_end": 1719
+      }
+    },
+    {
+      "source_unit_id": "s0036",
+      "source_order": 36,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "he said, punching Harry in the ribs.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1721,
+        "char_end": 1757
+      }
+    },
+    {
+      "source_unit_id": "s0037",
+      "source_order": 37,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Caught by surprise, Harry fell hard on the concrete floor.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1758,
+        "char_end": 1816
+      }
+    },
+    {
+      "source_unit_id": "s0038",
+      "source_order": 38,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "What came next happened so fast no one saw how it happened -- one second, Piers and Dudley were leaning right up close to the glass, the next, they had leapt back with howls of horror.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1817,
+        "char_end": 2001
+      }
+    },
+    {
+      "source_unit_id": "s0039",
+      "source_order": 39,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Harry sat up and gasped; the glass front of the boa constrictor's tank had vanished.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2002,
+        "char_end": 2086
+      }
+    },
+    {
+      "source_unit_id": "s0040",
+      "source_order": 40,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "The great snake was uncoiling itself rapidly, slithering out onto the floor.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2087,
+        "char_end": 2163
+      }
+    },
+    {
+      "source_unit_id": "s0041",
+      "source_order": 41,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "People throughout the reptile house screamed and started running for the exits.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2164,
+        "char_end": 2243
+      }
+    },
+    {
+      "source_unit_id": "s0042",
+      "source_order": 42,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "As the snake slid swiftly past him, Harry could have sworn a low, hissing voice said,",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2244,
+        "char_end": 2329
+      }
+    },
+    {
+      "source_unit_id": "s0043",
+      "source_order": 43,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q09",
+      "source_text": "Brazil, here I come...Thanksss, amigo.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2330,
+        "char_end": 2368
+      }
+    },
+    {
+      "source_unit_id": "s0044",
+      "source_order": 44,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "The keeper of the reptile house was in shock.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2373,
+        "char_end": 2418
+      }
+    },
+    {
+      "source_unit_id": "s0045",
+      "source_order": 45,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q10",
+      "source_text": "But the glass,",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2420,
+        "char_end": 2434
+      }
+    },
+    {
+      "source_unit_id": "s0046",
+      "source_order": 46,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "he kept saying,",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2436,
+        "char_end": 2451
+      }
+    },
+    {
+      "source_unit_id": "s0047",
+      "source_order": 47,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q11",
+      "source_text": "where did the glass go?",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2453,
+        "char_end": 2476
+      }
+    },
+    {
+      "source_unit_id": "s0048",
+      "source_order": 48,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "The zoo director himself made Aunt Petunia a cup of strong, sweet tea while he apologized over and over again.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2478,
+        "char_end": 2588
+      }
+    },
+    {
+      "source_unit_id": "s0049",
+      "source_order": 49,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Piers and Dudley could only gibber.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2589,
+        "char_end": 2624
+      }
+    }
+  ],
+  "original_source_excerpt": "Uncle Vernon rapped the glass smartly with his knuckles, but the snake just snoozed on.\n\"This is boring,\" Dudley moaned. He shuffled away.\nHarry moved in front of the tank and looked intently at the snake. He wouldn't have been surprised if it had died of boredom itself -- no company except stupid people drumming their fingers on the glass trying to disturb it all day long. It was worse than having a cupboard as a bedroom, where the only visitor was Aunt Petunia hammering on the door to wake you up; at least he got to visit the rest of the house.\nThe snake suddenly opened its beady eyes. Slowly, very slowly, it raised its head until its eyes were on a level with Harry's.\nIt winked.\nHarry stared. Then he looked quickly around to see if anyone was watching. They weren't. He looked back at the snake and winked, too.\nThe snake jerked its head toward Uncle Vernon and Dudley, then raised its eyes to the ceiling. It gave Harry a look that said quite plainly:\n\"I get that all the time.\n\"I know,\" Harry murmured through the glass, though he wasn't sure the snake could hear him. \"It must be really annoying.\"\nThe snake nodded vigorously.\n\"Where do you come from, anyway?\" Harry asked.\nThe snake jabbed its tail at a little sign next to the glass. Harry peered at it.\nBoa Constrictor, Brazil.\n\"Was it nice there?\"\nThe boa constrictor jabbed its tail at the sign again and Harry read on: This specimen was bred in the zoo. \"Oh, I see -- so you've never been to Brazil?\"\nAs the snake shook its head, a deafening shout behind Harry made both of them jump.\n\"DUDLEY! MR. DURSLEY! COME AND LOOK AT THIS SNAKE! YOU WON'T BELIEVE WHAT IT'S DOING!\"\nDudley came waddling toward them as fast as he could.\n\"Out of the way, you,\" he said, punching Harry in the ribs. Caught by surprise, Harry fell hard on the concrete floor. What came next happened so fast no one saw how it happened -- one second, Piers and Dudley were leaning right up close to the glass, the next, they had leapt back with howls of horror.\nHarry sat up and gasped; the glass front of the boa constrictor's tank had vanished. The great snake was uncoiling itself rapidly, slithering out onto the floor. People throughout the reptile house screamed and started running for the exits.\nAs the snake slid swiftly past him, Harry could have sworn a low, hissing voice said, \"Brazil, here I come.... Thanksss, amigo.\"\nThe keeper of the reptile house was in shock.\n\"But the glass,\" he kept saying, \"where did the glass go?\"\nThe zoo director himself made Aunt Petunia a cup of strong, sweet tea while he apologized over and over again. Piers and Dudley could only gibber.\n",
+  "replan_feedback": {
+    "stage": "localized_replan",
+    "instruction": "Replan only the failed suffix. Reduce spoken density and end every chunk after a complete phrase. Preserve source order, fixed voices, key dialogue, and a brief natural sound tail.",
+    "failure": {
+      "stage": "batch",
+      "failed_chunk_id": "chunk_015",
+      "summary": "This chunk fails due to an abrupt hard cut that leaves a long trailing segment of empty dead silence with no relevant audio drama content.",
+      "performance": {
+        "chunk_id": "chunk_015",
+        "model": "seed-2-0-lite-260428",
+        "status": "fail",
+        "verdict": "fail",
+        "issues": [
+          {
+            "type": "hard_boundary_or_abrupt_cut",
+            "severity": "major",
+            "evidence": "After the short scene segment ends, the clip abruptly cuts to more than 15 seconds of completely empty dead silence with no relevant production audio."
+          }
+        ],
+        "repair_instruction": "Regenerate this chunk to remove the extended trailing dead silence, with a natural smooth fade out of the scene's existing ambience, action SFX and composed underscore instead of the abrupt hard cut to silence.",
+        "summary": "This chunk fails due to an abrupt hard cut that leaves a long trailing segment of empty dead silence with no relevant audio drama content."
+      },
+      "technical": {
+        "status": "pass",
+        "chunk_id": "chunk_015",
+        "path": "/Users/bytedance/Documents/project/audio_book/isolated_runs/acceptance_20260721_r3_20260721T091212Z/ch02/seed-audiobook-generator-skill/outputs/skill_runs/ch02-r3-845edec1-cf67-469d-8fd1-3a7b9da5d206/sections/section_006/07_audio_parts/chunk_015.wav",
+        "duration_sec": 29.34,
+        "ffmpeg_decode_ok": true
+      }
+    }
+  },
+  "source_units_override": [
+    {
+      "source_unit_id": "s0030",
+      "source_order": 30,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q07",
+      "source_text": "DUDLEY!",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1558,
+        "char_end": 1565
+      }
+    },
+    {
+      "source_unit_id": "s0031",
+      "source_order": 31,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q07",
+      "source_text": "MR. DURSLEY!",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1566,
+        "char_end": 1578
+      }
+    },
+    {
+      "source_unit_id": "s0032",
+      "source_order": 32,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q07",
+      "source_text": "COME AND LOOK AT THIS SNAKE!",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1579,
+        "char_end": 1607
+      }
+    },
+    {
+      "source_unit_id": "s0033",
+      "source_order": 33,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q07",
+      "source_text": "YOU WON'T BELIEVE WHAT IT'S DOING!",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1608,
+        "char_end": 1642
+      }
+    },
+    {
+      "source_unit_id": "s0034",
+      "source_order": 34,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Dudley came waddling toward them as fast as he could.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1644,
+        "char_end": 1697
+      }
+    },
+    {
+      "source_unit_id": "s0035",
+      "source_order": 35,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q08",
+      "source_text": "Out of the way, you,",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1699,
+        "char_end": 1719
+      }
+    },
+    {
+      "source_unit_id": "s0036",
+      "source_order": 36,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "he said, punching Harry in the ribs.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1721,
+        "char_end": 1757
+      }
+    },
+    {
+      "source_unit_id": "s0037",
+      "source_order": 37,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Caught by surprise, Harry fell hard on the concrete floor.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1758,
+        "char_end": 1816
+      }
+    },
+    {
+      "source_unit_id": "s0038",
+      "source_order": 38,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "What came next happened so fast no one saw how it happened -- one second, Piers and Dudley were leaning right up close to the glass, the next, they had leapt back with howls of horror.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 1817,
+        "char_end": 2001
+      }
+    },
+    {
+      "source_unit_id": "s0039",
+      "source_order": 39,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Harry sat up and gasped; the glass front of the boa constrictor's tank had vanished.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2002,
+        "char_end": 2086
+      }
+    },
+    {
+      "source_unit_id": "s0040",
+      "source_order": 40,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "The great snake was uncoiling itself rapidly, slithering out onto the floor.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2087,
+        "char_end": 2163
+      }
+    },
+    {
+      "source_unit_id": "s0041",
+      "source_order": 41,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "People throughout the reptile house screamed and started running for the exits.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2164,
+        "char_end": 2243
+      }
+    },
+    {
+      "source_unit_id": "s0042",
+      "source_order": 42,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "As the snake slid swiftly past him, Harry could have sworn a low, hissing voice said,",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2244,
+        "char_end": 2329
+      }
+    },
+    {
+      "source_unit_id": "s0043",
+      "source_order": 43,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q09",
+      "source_text": "Brazil, here I come...Thanksss, amigo.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2330,
+        "char_end": 2368
+      }
+    },
+    {
+      "source_unit_id": "s0044",
+      "source_order": 44,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "The keeper of the reptile house was in shock.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2373,
+        "char_end": 2418
+      }
+    },
+    {
+      "source_unit_id": "s0045",
+      "source_order": 45,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q10",
+      "source_text": "But the glass,",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2420,
+        "char_end": 2434
+      }
+    },
+    {
+      "source_unit_id": "s0046",
+      "source_order": 46,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "he kept saying,",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2436,
+        "char_end": 2451
+      }
+    },
+    {
+      "source_unit_id": "s0047",
+      "source_order": 47,
+      "paragraph_id": "p01",
+      "source_kind": "quoted_text",
+      "quote_span_id": "p01_q11",
+      "source_text": "where did the glass go?",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2453,
+        "char_end": 2476
+      }
+    },
+    {
+      "source_unit_id": "s0048",
+      "source_order": 48,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "The zoo director himself made Aunt Petunia a cup of strong, sweet tea while he apologized over and over again.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2478,
+        "char_end": 2588
+      }
+    },
+    {
+      "source_unit_id": "s0049",
+      "source_order": 49,
+      "paragraph_id": "p01",
+      "source_kind": "narrative_text",
+      "source_text": "Piers and Dudley could only gibber.",
+      "source_span": {
+        "paragraph_id": "p01",
+        "char_start": 2589,
+        "char_end": 2624
+      }
+    }
+  ]
+}

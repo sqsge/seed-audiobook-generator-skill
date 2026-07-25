@@ -1,0 +1,8 @@
+[
+  {"case_id":"ch02_section_003_chunk_008","duration_sec":29.81,"intervals":[{"start_sec":4.0,"end_sec":29.81,"duration_sec":25.81}],"expected_reason":"excessive_trailing_silence"},
+  {"case_id":"ch02_section_001_chunk_005","duration_sec":24.8,"intervals":[{"start_sec":3.6,"end_sec":24.8,"duration_sec":21.2}],"expected_reason":"excessive_trailing_silence"},
+  {"case_id":"ch03_section_004_chunk_001","duration_sec":36.15,"intervals":[{"start_sec":5.8,"end_sec":36.15,"duration_sec":30.35}],"expected_reason":"excessive_trailing_silence"},
+  {"case_id":"ch03_section_006_chunk_005","duration_sec":28.3,"intervals":[{"start_sec":6.0,"end_sec":17.2,"duration_sec":11.2},{"start_sec":19.1,"end_sec":28.3,"duration_sec":9.2}],"expected_reason":"excessive_internal_silence"},
+  {"case_id":"ch04_section_004_chunk_002","duration_sec":43.8,"intervals":[{"start_sec":21.5,"end_sec":43.8,"duration_sec":22.3}],"expected_reason":"excessive_trailing_silence"},
+  {"case_id":"ch04_section_007_chunk_012","duration_sec":41.27,"intervals":[{"start_sec":31.8,"end_sec":41.1,"duration_sec":9.3}],"expected_reason":"excessive_trailing_silence"}
+]

@@ -2,7 +2,7 @@
 
 This repository contains a Codex skill for turning plain fiction text into a Seed Audio 1.0-ready multi-character audiobook or audio-drama workflow.
 
-The workflow uses Seed 2.0 Pro for structured rewrite and Seed Audio 1.0 for mixed audio generation, including narration, character dialogue, ambience, action SFX, and music cues.
+The workflow uses a configurable planning model (r8 defaults to `dola-seed-2-1-turbo-260628`) and Seed Audio 1.0 for mixed audio generation. A deterministic compiler turns the plan into bounded prompts, and adaptive objective QA prevents long silent padding from reaching the final chapter.
 
 ## Repository Layout
 
@@ -67,6 +67,9 @@ The main variables are:
 
 - `LLM_API_KEY` or `ARK_API_KEY`
 - `LLM_BASE_URL`
+- `SEED_AUDIO_REWRITE_MODEL`
+- `SEED_AUDIO_MAX_STRUCTURAL_REPLANS` (default `3`)
+- `SEED_AUDIO_MAX_STAGNANT_REPLANS` (default `2`)
 - `LLM_MODEL`
 - `SEED_AUDIO_API_KEY`
 - `SEED_AUDIO_URL`
@@ -103,7 +106,7 @@ The planner:
 The existing workflow still handles:
 
 - source-unit parsing
-- Seed 2.0 Pro rewrite
+- configurable planning-model rewrite and Prompt V2 compilation
 - role-to-voice mapping
 - Seed Audio 1.0 request generation
 - audio chunk generation

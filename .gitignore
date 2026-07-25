@@ -26,3 +26,8 @@ dist/
 *.jpeg
 *.webp
 *.log
+
+# Local/demo run inputs that should not be committed with the reusable skill.
+inputs/r8_to_r9_frozen_role_aliases.json
+story_configs/moonlit_cloister_duel_en.json
+examples/moonlit_cloister_source.txt

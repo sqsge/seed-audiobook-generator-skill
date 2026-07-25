@@ -39,6 +39,27 @@ def run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, cwd=ROOT, text=True, capture_output=True)
 
 
+def audio_duration(path: Path) -> float | None:
+    result = run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            str(path),
+        ]
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        return float(result.stdout.strip())
+    except ValueError:
+        return None
+
+
 def read_json(path: Path) -> dict:
     if not path.exists():
         return {}
@@ -274,18 +295,19 @@ def section_status(section_dir: Path, *, mode: str, roles: dict) -> dict:
     if mode == "rewrite":
         quality_status = "planned"
         asr_status = "planned"
-        performance_status = "planned"
         passed = rewrite_ok and not speaker_conflicts
     else:
         quality_status = quality.get("status", "missing")
         asr_status = asr.get("status", "missing")
-        performance_status = performance.get("status", "missing")
+        performance_status = performance.get("delivery_status", "missing")
         passed = (
             quality.get("status") == "pass"
             and asr.get("status") == "pass"
-            and performance.get("status") == "pass"
+            and performance_status == "pass"
             and bool(final_audio)
         )
+    if mode == "rewrite":
+        performance_status = "planned"
     return {
         "section_id": section_dir.name,
         "rewrite_status": "pass" if rewrite_ok else "missing",
@@ -300,7 +322,9 @@ def section_status(section_dir: Path, *, mode: str, roles: dict) -> dict:
         "asr_status": asr_status,
         "asr_fail_reasons": asr.get("fail_reasons", []),
         "performance_status": performance_status,
-        "performance_fail_reasons": performance.get("fail_reasons", []),
+        "performance_preview_status": performance.get("preview_status", "missing"),
+        "performance_failed_chunk_ids": performance.get("failed_chunk_ids", []),
+        "performance_unavailable_chunk_ids": performance.get("unavailable_chunk_ids", []),
         "pass": passed,
     }
 
@@ -332,8 +356,50 @@ def archive_section_dir(section_dir: Path, reason: str) -> Path:
 def stitch_chapter(attempt_dir: Path, section_audios: list[Path], output_name: str) -> Path:
     stitched_dir = attempt_dir / "stitched"
     stitched_dir.mkdir(parents=True, exist_ok=True)
+    prepared_dir = stitched_dir / "boundary_smoothed_parts"
+    prepared_dir.mkdir(parents=True, exist_ok=True)
+    prepared_paths: list[Path] = []
+    fade_in_sec = float(os.getenv("SEED_AUDIO_STITCH_FADE_IN_SEC", "0.025"))
+    fade_out_sec = float(os.getenv("SEED_AUDIO_STITCH_FADE_OUT_SEC", "0.060"))
+    for index, path in enumerate(section_audios, start=1):
+        duration = audio_duration(path)
+        prepared = prepared_dir / f"{index:04d}_{path.stem}.wav"
+        if duration is None or duration <= 0.2:
+            prepared_paths.append(path)
+            continue
+        fade_out = min(fade_out_sec, max(0.0, duration / 4))
+        fade_in = min(fade_in_sec, max(0.0, duration / 4))
+        fade_start = max(0.0, duration - fade_out)
+        filters = [
+            "aresample=24000",
+            "aformat=sample_fmts=s16:channel_layouts=stereo",
+            f"afade=t=in:st=0:d={fade_in:.4f}",
+            f"afade=t=out:st={fade_start:.4f}:d={fade_out:.4f}",
+        ]
+        result = run(
+            [
+                "ffmpeg",
+                "-y",
+                "-v",
+                "error",
+                "-i",
+                str(path),
+                "-af",
+                ",".join(filters),
+                "-ar",
+                "24000",
+                "-ac",
+                "2",
+                "-c:a",
+                "pcm_s16le",
+                str(prepared),
+            ]
+        )
+        if result.returncode != 0:
+            raise SystemExit(f"Boundary smoothing failed for {path}: {result.stderr.strip()}")
+        prepared_paths.append(prepared)
     concat = stitched_dir / "concat.txt"
-    write_text(concat, "".join(f"file '{path.as_posix()}'\n" for path in section_audios))
+    write_text(concat, "".join(f"file '{path.as_posix()}'\n" for path in prepared_paths))
     output = stitched_dir / output_name
     result = run(
         [
@@ -590,7 +656,6 @@ def main() -> int:
                     "char_count": len(source_text),
                     "quality_status": "planned",
                     "asr_status": "planned",
-                    "performance_status": "planned",
                     "pass": False,
                 }
             )
@@ -629,17 +694,13 @@ def main() -> int:
                 last_status = section_status(section_dir, mode=section_mode, roles=roles)
                 if last_status["pass"]:
                     break
-                # A reviewer outage cannot be repaired by regenerating the
-                # same audio. Preserve this section and stop so the report is
-                # actionable instead of multiplying provider calls.
-                if last_status.get("performance_status") == "unavailable":
+                # The preview is useful evidence even when the external reviewer is
+                # temporarily unavailable. Do not burn provider calls by regenerating
+                # the whole section for that infrastructure condition.
+                if last_status.get("performance_status") == "fail" and last_status.get("performance_unavailable_chunk_ids"):
                     break
             if section_attempt < max_attempts and section_dir.exists():
-                reason = "returncode" if result.returncode != 0 else (
-                    f"quality_{(last_status or {}).get('quality_status', 'missing')}_"
-                    f"asr_{(last_status or {}).get('asr_status', 'missing')}_"
-                    f"performance_{(last_status or {}).get('performance_status', 'missing')}"
-                )
+                reason = "returncode" if result.returncode != 0 else f"quality_{(last_status or {}).get('quality_status', 'missing')}_asr_{(last_status or {}).get('asr_status', 'missing')}"
                 archive_section_dir(section_dir, reason)
                 time.sleep(2 * section_attempt)
                 continue
@@ -697,7 +758,7 @@ def main() -> int:
     chapter_report = {
         "status": "planned" if args.prepare_only else ("fail" if failed else "pass"),
         "fail_reasons": [
-            f"{item['section_id']}: quality={item['quality_status']} asr={item['asr_status']} performance={item.get('performance_status', 'missing')}"
+            f"{item['section_id']}: quality={item['quality_status']} asr={item['asr_status']}"
             for item in failed
         ],
         "final_audio": final_audio,

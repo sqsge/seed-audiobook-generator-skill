@@ -12,7 +12,7 @@ This package contains the reusable Seed Audiobook Generator workflow code and do
   - `chapter_audio_workflow.py`: full-chapter orchestration and recovery workflow.
   - `long_text_batch_planner.py`: long-text chapter and batch planner.
   - `seed_audio_client.py`: Seed Audio 1.0 client.
-  - `llm_chat.py`: Seed 2.0 Pro / Ark-compatible rewrite client.
+  - `llm_chat.py`: configurable Ark-compatible planning client.
   - `asr_client.py`: ASR quality gate client.
   - `tts_client.py`: optional reference voice helper.
   - `common.py`: shared environment and filesystem helpers.

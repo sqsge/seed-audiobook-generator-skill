@@ -8,7 +8,10 @@ Use this file for setup and credential triage. Never print real values from `.en
 - `ARK_BASE_URL`: Ark-compatible base URL.
 - `LLM_API_KEY`: preferred API key for rewrite calls.
 - `LLM_BASE_URL`: OpenAI-compatible chat base URL.
-- `LLM_MODEL`: rewrite model, for example `seed-2-0-pro-260328`.
+- `SEED_AUDIO_REWRITE_MODEL`: planner model used by this workflow. Defaults to `dola-seed-2-1-turbo-260628`; set `seed-2-0-pro-260328` for controlled A/B replay.
+- `SEED_AUDIO_MAX_STRUCTURAL_REPLANS`: maximum automatic structural failed-suffix rounds per section; default `3`.
+- `SEED_AUDIO_MAX_STAGNANT_REPLANS`: comparable non-improving rounds allowed before human review; default `2`.
+- `LLM_MODEL`: lower-level chat-client fallback. The workflow-level planner selection above takes precedence where explicitly passed.
 - `LLM_SYSTEM_PROMPT`: optional system prompt.
 
 ## Seed Audio
@@ -16,10 +19,6 @@ Use this file for setup and credential triage. Never print real values from `.en
 - `SEED_AUDIO_API_KEY`: recommended API key for Seed Audio 1.0.
 - `SEED_AUDIO_URL`: Seed Audio endpoint.
 - `SEED_AUDIO_MODEL`: model id, usually `seed-audio-1.0`.
-- `SEED_AUDIO_PERFORMANCE_REVIEW_MODEL`: audio-capable reviewer model, default `seed-2-0-lite-260428`.
-- `SEED_AUDIO_PERFORMANCE_REVIEW_TIMEOUT`: reviewer request timeout in seconds, default `75`.
-- `SEED_AUDIO_REWRITE_MAX_TOKENS`: maximum structured rewrite output for one source section, default `6000`.
-- `SEED_AUDIO_POSTPROCESS_TIMING`: defaults to `false`; enable only when manually recovering excessive silence, since automatic silence removal can cut quiet line endings.
 - `SEED_AUDIO_FORMAT`: output format such as `wav` or `mp3`.
 - `SEED_AUDIO_SAMPLE_RATE`: output sample rate.
 - `SEED_AUDIO_SPEECH_RATE`: global speech-rate adjustment.

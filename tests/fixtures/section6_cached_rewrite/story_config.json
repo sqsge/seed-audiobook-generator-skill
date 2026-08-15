@@ -758,7 +758,7 @@
       "technical": {
         "status": "pass",
         "chunk_id": "chunk_015",
-        "path": "/Users/bytedance/Documents/project/audio_book/isolated_runs/acceptance_20260721_r3_20260721T091212Z/ch02/seed-audiobook-generator-skill/outputs/skill_runs/ch02-r3-845edec1-cf67-469d-8fd1-3a7b9da5d206/sections/section_006/07_audio_parts/chunk_015.wav",
+        "path": "outputs/skill_runs/ch02-r3-845edec1-cf67-469d-8fd1-3a7b9da5d206/sections/section_006/07_audio_parts/chunk_015.wav",
         "duration_sec": 29.34,
         "ffmpeg_decode_ok": true
       }

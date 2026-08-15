@@ -40,7 +40,7 @@ long source text
   -> chapter_plan.json
   -> chapters/chapter_XXXX.txt
   -> batch_plan.json
-  -> audiobook_workflow.py per chapter or batch
+  -> audio_drama_skill.py run per chapter
   -> existing Audio 1.0 prompt generation
   -> existing audio generation and stitching
 ```
@@ -86,4 +86,4 @@ outputs/long_runs/<run_id>/
 
 ## Next Integration Step
 
-The planner currently prepares long-form inputs. The next implementation step is a batch runner that reads `batch_plan.json`, invokes `audiobook_workflow.py --source-file chapters/chapter_XXXX.txt` for each chapter, records per-chapter run IDs, and performs final book-level batch stitching after all chapter-level outputs pass QA.
+The planner prepares long-form inputs. Run each planned chapter through the public `audio_drama_skill.py run` entry point, record the resulting run IDs, and perform final book-level stitching only after all chapter-level outputs pass QA.

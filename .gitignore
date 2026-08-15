@@ -29,6 +29,7 @@ dist/
 
 # Deliberately published README showcase asset. All other generated media stays ignored.
 !assets/demo.wav
+!assets/demo-preview-30s.wav
 
 # Local/demo run inputs that should not be committed with the reusable skill.
 inputs/r8_to_r9_frozen_role_aliases.json

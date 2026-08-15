@@ -243,8 +243,7 @@ Run before packaging or publishing:
 
 ```bash
 PYTHONPYCACHEPREFIX=/tmp/seed-audio-pyc python3 -m py_compile scripts/*.py
-PYTHONPYCACHEPREFIX=/tmp/seed-audio-pyc python3 -m unittest discover -s tests -v
-python3 /Users/bytedance/Documents/project/skill_test/codex-workflows/skills/skill-workflow-regression/scripts/run_skill_workflow_cases.py tests/workflow_cases.json
+PYTHONPYCACHEPREFIX=/tmp/seed-audio-pyc python3 -m pytest tests -q
 ```
 
 Report the run id, workflow phase, accepted and failed chunk counts, pilot approval state, current item, exact stop gate, and final audio path when complete.

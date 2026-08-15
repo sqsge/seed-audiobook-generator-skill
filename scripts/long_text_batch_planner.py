@@ -358,7 +358,7 @@ def main() -> int:
         "chapter_count": len(chapters),
         "batch_count": len(batches),
         "coverage": coverage,
-        "next_step": "Run scripts/audiobook_workflow.py per chapter or batch using the existing generation mechanism.",
+        "next_step": "Use scripts/audio_drama_skill.py run for each planned chapter; see README.md for the supported command.",
         "outputs": {
             "source_clean": "source_clean.txt",
             "preprocessing_report": "preprocessing_report.json",

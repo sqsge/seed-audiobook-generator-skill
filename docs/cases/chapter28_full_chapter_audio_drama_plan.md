@@ -300,7 +300,7 @@ The entry does not replace the existing single-section generation engine. Instea
 3. Write a fixed chapter-level voice registry.
 4. Write one story config per section with `lock_roles=true`.
 5. Run API preflight for Seed2, TTS references, Seed Audio generation, and ASR.
-6. Run `scripts/audiobook_workflow.py` once per section.
+6. Run the public `scripts/audio_drama_skill.py` entry point for the approved run.
 7. Require every section to pass its local audio QA and ASR language gate.
 8. Stitch the full chapter only after all sections pass.
 9. Write `chunk_manifest.json`, `reports/chapter_quality_report.json`, and `reports/chapter_asr_report.json`.

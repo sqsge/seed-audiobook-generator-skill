@@ -1,21 +1,31 @@
-# Seed Audiobook Generator
+# Seed Audiobook Generator Skill
 
-**A QA-gated, resumable multi-character Audio Drama production pipeline — not an ebook-to-TTS converter.**
+Turn long English fiction into a QA-gated, resumable, multi-character audio drama with Seed Audio 1.0.
 
-It turns fiction into a controlled production run: stable casting, frozen scene inputs, representative pilots, resumable batch rendering, chunk-level audio repair, and chapter-level acceptance. The output is mixed narration, dialogue, ambience, and source-motivated SFX; composed background music is disabled by default because it does not stitch reliably across independently generated chunks.
+[Listen to 30-second demo](#listen-to-the-demo) · [See workflow](#workflow) · [Quick start](#quick-start)
+
+Unlike ebook-to-TTS tools, this skill treats audio drama as a production workflow:
+
+- chapter-wide voice consistency
+- casting and pilot approval gates
+- dialogue attribution and provider-input validation
+- per-chunk QA, targeted repair, and failed-suffix replanning
+- crash recovery and immutable run artifacts
+
+The output is mixed narration, dialogue, ambience, and source-motivated SFX; composed background music is disabled by default because it does not stitch reliably across independently generated chunks.
 
 ## Listen to the demo
 
-This is a 16-minute generated audio-drama pilot (`demo.wav`, 24 kHz WAV) supplied for this repository's public demonstration.
+This 30-second preview is an excerpt of the checked-in generated audio-drama pilot. It demonstrates multi-character performance and scene sound; the full 16-minute, 24 kHz WAV remains available below.
 
 <audio controls preload="metadata">
-  <source src="assets/demo.wav" type="audio/wav">
+  <source src="assets/demo-preview-30s.wav" type="audio/wav">
   Your browser does not support embedded audio. Download the file from the link below.
 </audio>
 
-[Download or open the demo audio (WAV, 91 MB)](assets/demo.wav)
+[Open the 30-second preview (WAV, 2.7 MB)](assets/demo-preview-30s.wav) · [Open the full demo (WAV, 91 MB)](assets/demo.wav)
 
-The demo is intentionally a checked-in showcase asset. Production outputs remain git-ignored by default because they may contain customer text, are costly to reproduce, and are governed by the provider's retention policy.
+These two files are deliberately checked-in showcase assets. Production outputs remain git-ignored by default because they may contain customer text, are costly to reproduce, and are governed by the provider's retention policy.
 
 The bundled input is [`examples/moonlit_cloister_source.txt`](examples/moonlit_cloister_source.txt), an original English magic-duel scene. A completed run keeps all source-to-output evidence together:
 

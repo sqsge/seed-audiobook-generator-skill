@@ -4,7 +4,18 @@
 
 It turns fiction into a controlled production run: stable casting, frozen scene inputs, representative pilots, resumable batch rendering, chunk-level audio repair, and chapter-level acceptance. The output is mixed narration, dialogue, ambience, and source-motivated SFX; composed background music is disabled by default because it does not stitch reliably across independently generated chunks.
 
-## 30-second demo
+## Listen to the demo
+
+This is a 16-minute generated audio-drama pilot (`demo.wav`, 24 kHz WAV) supplied for this repository's public demonstration.
+
+<audio controls preload="metadata">
+  <source src="assets/demo.wav" type="audio/wav">
+  Your browser does not support embedded audio. Download the file from the link below.
+</audio>
+
+[Download or open the demo audio (WAV, 91 MB)](assets/demo.wav)
+
+The demo is intentionally a checked-in showcase asset. Production outputs remain git-ignored by default because they may contain customer text, are costly to reproduce, and are governed by the provider's retention policy.
 
 The bundled input is [`examples/moonlit_cloister_source.txt`](examples/moonlit_cloister_source.txt), an original English magic-duel scene. A completed run keeps all source-to-output evidence together:
 
@@ -19,7 +30,7 @@ outputs/skill_runs/<run-id>/
 └── logs/final_chapter_audit.json    # final timeline audit
 ```
 
-Generated audio is deliberately not committed: it may contain customer text and is large, costly to reproduce, and governed by the provider's retention policy. To make or listen to a 30-second preview, run the Quick Start flow through Pilot, then open the WAV files under `outputs/skill_runs/<run-id>/sections/*/07_audio_parts/`.
+To create and inspect your own pilot, run the Quick Start flow through Pilot, then open the WAV files under `outputs/skill_runs/<run-id>/sections/*/07_audio_parts/`.
 
 ## Why not direct Seed Audio?
 

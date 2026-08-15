@@ -15,13 +15,14 @@ import audio_drama_skill as skill  # noqa: E402
 
 
 class AdaptiveSilenceTests(unittest.TestCase):
-    def test_natural_three_second_pause_does_not_block(self):
+    def test_three_second_pause_is_reviewable_but_does_not_block(self):
         report = workflow.adaptive_audio_signal_from_intervals(
             30.0,
             [{"start_sec": 10.0, "end_sec": 13.0, "duration_sec": 3.0}],
         )
-        self.assertEqual(report["status"], "pass")
+        self.assertEqual(report["status"], "warn")
         self.assertEqual(report["hard_reasons"], [])
+        self.assertIn("review_internal_pause", report["warning_reasons"])
 
     def test_long_tail_is_hard_failure_by_time_and_ratio(self):
         report = workflow.adaptive_audio_signal_from_intervals(
@@ -32,7 +33,7 @@ class AdaptiveSilenceTests(unittest.TestCase):
         self.assertIn("excessive_trailing_silence", report["hard_reasons"])
         self.assertEqual(report["repair_class"], "local_tail_trim_then_reaudit")
 
-    def test_repeated_long_internal_pauses_block(self):
+    def test_repeated_five_second_internal_pauses_require_audio_repair(self):
         report = workflow.adaptive_audio_signal_from_intervals(
             40.0,
             [
@@ -40,16 +41,19 @@ class AdaptiveSilenceTests(unittest.TestCase):
                 {"start_sec": 22.0, "end_sec": 27.0, "duration_sec": 5.0},
             ],
         )
-        self.assertIn("repeated_long_internal_silence", report["hard_reasons"])
+        self.assertEqual(report["hard_reasons"], [])
+        self.assertEqual(report["repair_class"], "repair_audio")
+        self.assertIn("repairable_internal_silence", report["warning_reasons"])
 
-    def test_sparse_long_pauses_in_one_hour_chapter_are_warnings_not_hard_failures(self):
+    def test_sparse_five_second_pauses_still_require_local_audio_repair(self):
         intervals = [
             {"start_sec": 300.0 * index, "end_sec": 300.0 * index + 5.0, "duration_sec": 5.0}
             for index in range(1, 7)
         ]
         report = workflow.adaptive_audio_signal_from_intervals(3600.0, intervals)
-        self.assertNotIn("repeated_long_internal_silence", report["hard_reasons"])
-        self.assertIn("long_internal_pause", report["warning_reasons"])
+        self.assertEqual(report["hard_reasons"], [])
+        self.assertEqual(report["repair_class"], "repair_audio")
+        self.assertIn("repairable_internal_silence", report["warning_reasons"])
 
     def test_objective_failure_overrides_reviewer_pass(self):
         report = {

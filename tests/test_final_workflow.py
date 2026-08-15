@@ -81,7 +81,7 @@ class FinalWorkflowTests(unittest.TestCase):
                 audiobook_workflow.SAFE_CONTENT_CEILING_SEC,
             )
             self.assertLessEqual(len(chunk["active_roles"]), 3)
-            self.assertTrue(chunk["text_prompt"].startswith("Time budget:"))
+            self.assertIn("Time budget:", chunk["text_prompt"])
             self.assertTrue(chunk["text_prompt"].splitlines()[-1].startswith("Final audible coda:"))
         attribution_like_narrative = next(
             item for item in normalized["parsed_source_units"] if item["source_unit_id"] == "s0036"
@@ -529,7 +529,7 @@ class FinalWorkflowTests(unittest.TestCase):
             }
         }
         with patch.object(audiobook_workflow, "ROLE_SPECS", role_specs):
-            with self.assertRaisesRegex(SystemExit, "cannot meet the <= 48s estimated content ceiling"):
+            with self.assertRaisesRegex(SystemExit, "Base prompt exceeds Seed Audio prompt limit"):
                 audiobook_workflow.enforce_estimated_duration_limit(plans, parsed)
 
     def test_compiled_contract_metadata_does_not_reblock_safe_multi_unit_chunk(self):

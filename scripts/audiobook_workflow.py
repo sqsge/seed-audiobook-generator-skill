@@ -48,18 +48,23 @@ DEFAULT_PERFORMANCE_MODE = os.getenv("SEED_AUDIO_PERFORMANCE_MODE", "balanced")
 DISABLE_BACKGROUND_MUSIC = os.getenv("SEED_AUDIO_DISABLE_BACKGROUND_MUSIC", "true").lower() in {"1", "true", "yes", "on"}
 HK_TZ = timezone(timedelta(hours=8))
 
-# Workflow V2 deliberately allows natural dramatic pauses.  Only clearly
-# excessive, output-padding-like silence is a hard failure.
+# Natural dramatic pauses are allowed, but must not turn into output padding.
+# The middle band is deliberately repairable locally: it must not force a
+# planner rewrite or silently pass into a completed chapter.
 ADAPTIVE_SILENCE_POLICY = {
-    "leading_warning_sec": 2.0,
-    "leading_hard_sec": 5.0,
+    "leading_trim_sec": 1.5,
+    "leading_warning_sec": 2.5,
+    "leading_hard_sec": 3.0,
     "leading_hard_ratio": 0.20,
-    "internal_warning_sec": 4.0,
-    "internal_hard_sec": 8.0,
-    "trailing_warning_sec": 4.0,
+    "internal_review_sec": 2.5,
+    "internal_repair_sec": 4.0,
+    "internal_hard_sec": 6.0,
+    "trailing_trim_sec": 1.5,
+    "trailing_warning_sec": 2.5,
     "trailing_warning_ratio": 0.15,
-    "trailing_hard_sec": 8.0,
+    "trailing_hard_sec": 3.0,
     "trailing_hard_ratio": 0.30,
+    "chapter_long_silence_ratio_hard": 0.05,
 }
 
 ROLE_SPECS = {
@@ -3455,7 +3460,6 @@ def closure_timeline_instruction(timing: dict) -> str:
 
 
 def chunk_specific_audible_outro(contract: dict, repair: bool = False, timing: dict | None = None) -> str:
-    music = compact_clause_text(contract.get("music", ""), "the dramatic score", 105)
     ambience = compact_clause_text(contract.get("ambience", ""), "the continuous room tone", 105)
     key_sfx = [compact_clause_text(item, "the final foreground action", 80) for item in contract.get("key_sfx", [])]
     action = key_sfx[-1] if key_sfx else "the final foreground action"
@@ -3466,15 +3470,21 @@ def chunk_specific_audible_outro(contract: dict, repair: bool = False, timing: d
         "speech_action_percent": "70-75",
         "audible_closure_percent": "20-25",
     }
+    music = compact_clause_text(contract.get("music", ""), "", 105)
+    resolution = (
+        f"resolve {music} clearly over {ambience}"
+        if music
+        else f"let {ambience} settle naturally without music"
+    )
     if repair:
         return (
             f"Final audible coda for this full rerender: by {timing['foreground_hard_end_sec']:g}s {action} is complete; "
-            f"from {timing['cadence_start_sec']:g}s to {timing['target_end_sec']:g}s resolve {music} clearly over "
-            f"{ambience}, ending on the audible cadence with no silent padding."
+            f"from {timing['cadence_start_sec']:g}s to {timing['target_end_sec']:g}s {resolution}, ending on the audible "
+            "cadence with no silent padding."
         )
     return (
         f"Final audible coda: by {timing['foreground_hard_end_sec']:g}s {action} is complete; from "
-        f"{timing['cadence_start_sec']:g}s to {timing['target_end_sec']:g}s resolve {music} clearly over {ambience}, "
+        f"{timing['cadence_start_sec']:g}s to {timing['target_end_sec']:g}s {resolution}, "
         "ending on the audible cadence with no silent padding."
     )
 
@@ -5489,7 +5499,9 @@ def adaptive_audio_signal_from_intervals(duration: float | None, intervals: list
     internal = [item for item in intervals if item not in leading and item not in trailing]
     leading_sec = max((float(item.get("duration_sec") or 0) for item in leading), default=0.0)
     trailing_sec = max((float(item.get("duration_sec") or 0) for item in trailing), default=0.0)
-    long_internal = [item for item in internal if float(item.get("duration_sec") or 0) > ADAPTIVE_SILENCE_POLICY["internal_warning_sec"]]
+    review_internal = [item for item in internal if float(item.get("duration_sec") or 0) > ADAPTIVE_SILENCE_POLICY["internal_review_sec"]]
+    repairable_internal = [item for item in internal if float(item.get("duration_sec") or 0) > ADAPTIVE_SILENCE_POLICY["internal_repair_sec"]]
+    long_internal = review_internal
     long_internal_ratio = sum(float(item.get("duration_sec") or 0) for item in long_internal) / duration
     hard_reasons: list[str] = []
     warnings: list[str] = []
@@ -5499,16 +5511,22 @@ def adaptive_audio_signal_from_intervals(duration: float | None, intervals: list
         warnings.append("long_leading_pause")
     if any(float(item.get("duration_sec") or 0) > ADAPTIVE_SILENCE_POLICY["internal_hard_sec"] for item in internal):
         hard_reasons.append("excessive_internal_silence")
-    elif len(long_internal) >= 2 and long_internal_ratio > 0.05:
-        warnings.append("repeated_long_internal_pause")
+    elif repairable_internal:
+        warnings.append("repairable_internal_silence")
+    elif len(long_internal) >= 2 and long_internal_ratio > ADAPTIVE_SILENCE_POLICY["chapter_long_silence_ratio_hard"]:
+        warnings.append("repeated_review_internal_pause")
     elif long_internal:
-        warnings.append("long_internal_pause")
+        warnings.append("review_internal_pause")
     if trailing_sec > ADAPTIVE_SILENCE_POLICY["trailing_hard_sec"] or trailing_sec / duration > ADAPTIVE_SILENCE_POLICY["trailing_hard_ratio"]:
         hard_reasons.append("excessive_trailing_silence")
-    elif trailing_sec > ADAPTIVE_SILENCE_POLICY["trailing_warning_sec"] or trailing_sec / duration > ADAPTIVE_SILENCE_POLICY["trailing_warning_ratio"]:
-        warnings.append("long_trailing_pause")
+    elif trailing_sec > ADAPTIVE_SILENCE_POLICY["trailing_trim_sec"] or trailing_sec / duration > ADAPTIVE_SILENCE_POLICY["trailing_warning_ratio"]:
+        warnings.append("trimmable_trailing_silence")
     repair_class = "none"
     if hard_reasons == ["excessive_trailing_silence"]:
+        repair_class = "local_tail_trim_then_reaudit"
+    elif not hard_reasons and repairable_internal:
+        repair_class = "repair_audio"
+    elif not hard_reasons and "trimmable_trailing_silence" in warnings:
         repair_class = "local_tail_trim_then_reaudit"
     elif hard_reasons:
         repair_class = "regenerate_chunk"
@@ -5864,7 +5882,7 @@ def audio_quality_report(run_dir: Path, parts: list[Path], full: Path) -> dict:
         objective_audio = adaptive_audio_signal_from_intervals(duration, intervals)
         long_internal_silences = [
             item for item in intervals
-            if item["duration_sec"] > ADAPTIVE_SILENCE_POLICY["internal_warning_sec"]
+            if item["duration_sec"] > ADAPTIVE_SILENCE_POLICY["internal_repair_sec"]
             and (item["end_sec"] or 0) < (duration or 0) - 0.5
         ]
         tail_silences = [
@@ -5931,12 +5949,12 @@ def audio_quality_report(run_dir: Path, parts: list[Path], full: Path) -> dict:
                 report["audio_drama_duration_status"] = "suspiciously_long"
             else:
                 report["audio_drama_duration_status"] = "within_audio_drama_range"
-        if "long_internal_pause" in objective_audio.get("warning_reasons", []):
+        if "repairable_internal_silence" in objective_audio.get("warning_reasons", []):
             report["needs_regeneration"] = True
-            report["reasons"].append("long_internal_silence")
-        if "long_trailing_pause" in objective_audio.get("warning_reasons", []):
+            report["reasons"].append("repairable_internal_silence")
+        if "trimmable_trailing_silence" in objective_audio.get("warning_reasons", []):
             report["needs_regeneration"] = True
-            report["reasons"].append("long_trailing_pause_warning")
+            report["reasons"].append("trimmable_trailing_silence")
         report["reasons"].extend(objective_audio.get("hard_reasons", []))
         if objective_audio.get("hard_reasons"):
             report["needs_regeneration"] = True

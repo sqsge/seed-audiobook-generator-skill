@@ -360,7 +360,8 @@ class PackagePerformanceQaTests(unittest.TestCase):
             contract,
         )
         self.assertNotIn(audiobook_workflow.LEGACY_GENERIC_OUTROS[1], prompt)
-        self.assertIn("soft tense piano underscore", outro)
+        self.assertNotIn("soft tense piano underscore", outro)
+        self.assertNotIn("dramatic score", outro)
         self.assertIn("refrigerator hum", outro)
         self.assertIn("floorboard creaks", outro)
         self.assertTrue(timing["silent_padding_forbidden"])

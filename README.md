@@ -31,9 +31,16 @@ The workflow uses a configurable planning model (r8 defaults to `dola-seed-2-1-t
 ## Quick Start
 
 ```bash
-cp references/env.example .env
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
+ffmpeg -version
+cp .env.example .env
 python3 scripts/audiobook_workflow.py --story-config story_configs/moonlit_cloister_duel_en.json
 ```
+
+`ffmpeg` is a required system dependency for WAV validation, tail trimming, and stitching. Install it with your operating-system package manager before running the workflow. For tests, install `python3 -m pip install -r requirements-dev.txt`.
 
 Add `--generate` only when Seed Audio credentials are configured and you want to call the real audio model:
 
@@ -61,7 +68,7 @@ This creates a long-run folder with `source_clean.txt`, `preprocessing_report.js
 
 ## Configuration
 
-Use `references/env.example` as the safe template. Do not commit `.env`.
+Use the root `.env.example` as the safe template. The expanded variable reference remains in `references/env.example` and `references/env-vars.md`. Do not commit `.env`.
 
 The main variables are:
 

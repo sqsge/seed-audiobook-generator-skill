@@ -9,6 +9,7 @@ Use this file for setup and credential triage. Never print real values from `.en
 - `LLM_API_KEY`: preferred API key for rewrite calls.
 - `LLM_BASE_URL`: OpenAI-compatible chat base URL.
 - `SEED_AUDIO_REWRITE_MODEL`: planner model used by this workflow. Defaults to `dola-seed-2-1-turbo-260628`; set `seed-2-0-pro-260328` for controlled A/B replay.
+- `SEED_AUDIO_REVIEW_MODEL`: audio-review model used by the listening gate. Defaults to `seed-2-0-lite-260428`.
 - `SEED_AUDIO_MAX_STRUCTURAL_REPLANS`: maximum automatic structural failed-suffix rounds per section; default `3`.
 - `SEED_AUDIO_MAX_STAGNANT_REPLANS`: comparable non-improving rounds allowed before human review; default `2`.
 - `LLM_MODEL`: lower-level chat-client fallback. The workflow-level planner selection above takes precedence where explicitly passed.
